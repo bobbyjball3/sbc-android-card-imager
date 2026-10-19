@@ -602,17 +602,143 @@ def test_iter_destinations_when_overlay_and_shader_are_source_relative(tmp_path:
         '[[source]]\nid = "s"\ntype = "git"\nurl = "https://example.com/s.git"\n'
         'license = "MIT"\nattribution = "Example"\n\n'
         '[[overlay]]\nplatform = "GBA"\npath = "gba/overlay.png"\nsource = "s"\n\n'
-        '[[shader]]\npath = "crt/crt.glslp"\nsource = "s"\n',
+        '[[shader]]\npath = "preset/crt.glslp"\nsource = "s"\n',
     )
 
     destinations = list(iter_destinations(manifest))
 
     assert [destination.dest for destination in destinations] == [
-        PurePosixPath("Cannoli/Overlays/GBA/gba/overlay.png"),
+        PurePosixPath("Cannoli/Overlays/GBA/overlay.png"),
         PurePosixPath("Cannoli/Shaders/crt/crt.glslp"),
     ]
     assert destinations[0].source_root == manifest.overlays[0].path
     assert destinations[1].source_root == manifest.shaders[0].path
+
+
+def test_iter_destinations_when_source_overlay_uses_basename_and_as(tmp_path: Path) -> None:
+    manifest = _manifest(
+        tmp_path,
+        '[[source]]\nid = "s"\ntype = "git"\nurl = "https://example.com/s.git"\n'
+        'license = "MIT"\nattribution = "Example"\n\n'
+        '[[overlay]]\nplatform = "GBA"\npath = "gba/bezel.png"\nsource = "s"\n\n'
+        '[[overlay]]\nplatform = "GBA"\npath = "gba/other.png"\nsource = "s"\nas = "custom.png"\n',
+    )
+
+    assert [destination.dest for destination in iter_destinations(manifest)] == [
+        PurePosixPath("Cannoli/Overlays/GBA/bezel.png"),
+        PurePosixPath("Cannoli/Overlays/GBA/custom.png"),
+    ]
+
+
+def test_iter_destinations_when_source_overlay_directory_uses_root_name(tmp_path: Path) -> None:
+    manifest = _manifest(
+        tmp_path,
+        '[[source]]\nid = "s"\ntype = "git"\nurl = "https://example.com/s.git"\n'
+        'license = "MIT"\nattribution = "Example"\n\n'
+        '[[overlay]]\nplatform = "GBA"\npath = "gba"\nsource = "s"\n',
+    )
+
+    assert [destination.dest for destination in iter_destinations(manifest)] == [
+        PurePosixPath("Cannoli/Overlays/GBA/gba")
+    ]
+
+
+def test_iter_destinations_when_source_shader_uses_preset_stem_and_as(tmp_path: Path) -> None:
+    manifest = _manifest(
+        tmp_path,
+        '[[source]]\nid = "s"\ntype = "git"\nurl = "https://example.com/s.git"\n'
+        'license = "MIT"\nattribution = "Example"\n\n'
+        '[[shader]]\npath = "preset/crt.glslp"\nsource = "s"\n\n'
+        '[[shader]]\npath = "preset/lcd.glslp"\nsource = "s"\nas = "custom.glslp"\n',
+    )
+
+    assert [destination.dest for destination in iter_destinations(manifest)] == [
+        PurePosixPath("Cannoli/Shaders/crt/crt.glslp"),
+        PurePosixPath("Cannoli/Shaders/custom/custom.glslp"),
+    ]
+
+
+def test_iter_destinations_when_artifact_file_uses_as(tmp_path: Path) -> None:
+    manifest = _manifest(
+        tmp_path,
+        '[[artifact]]\nroot = "cannoli"\ndest = "Guides"\npath = "file"\nas = "renamed.md"\n',
+        ("file",),
+    )
+
+    assert [destination.dest for destination in iter_destinations(manifest)] == [
+        PurePosixPath("Cannoli/Guides/renamed.md")
+    ]
+
+
+@pytest.mark.parametrize(
+    ("body", "files", "code"),
+    [
+        (
+            '[[overlay]]\nplatform = "GBA"\npath = "a.png"\nas = "/evil.png"\n',
+            ("a.png",),
+            "invalid-as",
+        ),
+        ('[[apk]]\npath = "a.apk"\nas = "/evil.apk"\n', ("a.apk",), "invalid-as"),
+        (
+            '[[overlay]]\nplatform = "GBA"\npath = "a.png"\nas = "dir/evil.png"\n',
+            ("a.png",),
+            "invalid-as",
+        ),
+        ('[[apk]]\npath = "a.apk"\nas = "../evil.apk"\n', ("a.apk",), "invalid-as"),
+        ('[[shader]]\npath = "a.glslp"\nas = "dir/"\n', ("a.glslp",), "invalid-as"),
+        (
+            '[[artifact]]\nroot = "card"\ndest = "/evil"\npath = "files"\n',
+            ("files/setup.md",),
+            "invalid-dest",
+        ),
+        (
+            '[[artifact]]\nroot = "card"\ndest = "a/../evil"\npath = "files"\n',
+            ("files/setup.md",),
+            "invalid-dest",
+        ),
+        (
+            '[[artifact]]\nroot = "card"\ndest = "a//evil"\npath = "files"\n',
+            ("files/setup.md",),
+            "invalid-dest",
+        ),
+    ],
+)
+def test_validate_manifest_when_as_or_dest_escapes_card_raises(
+    tmp_path: Path, body: str, files: tuple[str, ...], code: str
+) -> None:
+    manifest = _manifest(tmp_path, body, files)
+
+    _assert_error(manifest, code)
+
+
+@pytest.mark.parametrize(
+    ("body", "files", "code"),
+    [
+        (
+            '[[overlay]]\nplatform = "GBA"\npath = "a.png"\nas = "a.txt"\n',
+            ("a.png",),
+            "overlay-extension",
+        ),
+        ('[[shader]]\npath = "a.glslp"\nas = "a.txt"\n', ("a.glslp",), "shader-extension"),
+        ('[[apk]]\npath = "a.apk"\nas = "a.txt"\n', ("a.apk",), "apk-extension"),
+    ],
+)
+def test_validate_manifest_when_as_bypasses_extension_raises(
+    tmp_path: Path, body: str, files: tuple[str, ...], code: str
+) -> None:
+    manifest = _manifest(tmp_path, body, files)
+
+    _assert_error(manifest, code)
+
+
+def test_validate_manifest_when_typed_entry_yields_no_destinations_raises(tmp_path: Path) -> None:
+    manifest = _manifest(
+        tmp_path,
+        '[[overlay]]\nplatform = "GBA"\npath = "overlays"\n',
+        ("overlays/notes.txt",),
+    )
+
+    _assert_error(manifest, "empty-entry")
 
 
 def test_iter_destinations_when_apk_file_uses_as(tmp_path: Path) -> None:
