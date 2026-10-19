@@ -1,0 +1,9 @@
+[image]
+name = "relative"
+output = "out/card.img"
+
+[[rom]]
+platform = "N64"
+path = "roms/n64"
+include = ["**/*.z64", "**/*.n64"]
+exclude = ["*.tmp"]
