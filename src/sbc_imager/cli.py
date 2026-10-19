@@ -17,25 +17,19 @@ from rich.console import Console
 from rich.table import Table
 
 from sbc_imager import __version__
+from sbc_imager.build import BuildOptions, build_image
 from sbc_imager.cannoli import PLATFORM_TAGS
 from sbc_imager.cli_verify import register as register_verify
 from sbc_imager.config import Manifest, load_manifest
 from sbc_imager.errors import ConfigError, SbcImagerError
 from sbc_imager.planner import BuildPlan, build_plan, plan_payload, source_rows
 from sbc_imager.runner import SubprocessRunner
-from sbc_imager.sources import (
-    ResolvedSource,
-    SourceCache,
-    resolve_git,
-    resolve_http,
-    resolve_local,
-)
+from sbc_imager.sizes import format_size
+from sbc_imager.sources import ResolvedSource, SourceCache, resolve_git, resolve_http, resolve_local
 
 
 @dataclass(frozen=True, slots=True)
 class AppState:
-    """Global state shared with subcommands through the Typer context."""
-
     verbose: bool
 
 
@@ -62,8 +56,6 @@ def _report_error(error: SbcImagerError, *, verbose: bool) -> None:
 
 
 def _handle_errors[**P, R](func: Callable[P, R]) -> Callable[P, R]:
-    """Turn expected failures into stable stderr output and exit codes."""
-
     @functools.wraps(func)
     def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
         try:
@@ -77,22 +69,6 @@ def _handle_errors[**P, R](func: Callable[P, R]) -> Callable[P, R]:
 
 def _platform_rows() -> list[dict[str, str]]:
     return [{"tag": tag, "platform": platform} for tag, platform in PLATFORM_TAGS.items()]
-
-
-def _not_implemented(command: str, target: str) -> None:
-    raise ConfigError(
-        f"{command} is not implemented yet",
-        hint=f"See {target} for the implementation.",
-    )
-
-
-def _human_size(size: int) -> str:
-    value = float(size)
-    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
-        if value < 1024 or unit == "TiB":
-            return f"{value:.0f} {unit}" if unit == "B" else f"{value:.1f} {unit}"
-        value /= 1024
-    return f"{size} B"
 
 
 def _resolve_sources(
@@ -110,52 +86,59 @@ def _resolve_sources(
         if referenced_only
         else {source.id for source in manifest.sources}
     )
-    git_options = {"offline": offline, "allow_branch": allow_branch}
     resolved: dict[str, ResolvedSource] = {}
     for source in manifest.sources:
         if source.id not in wanted:
             continue
         kind = source.type.casefold()
         if kind == "git":
-            resolved[source.id] = resolve_git(source, cache, runner, **git_options)
+            resolved[source.id] = resolve_git(
+                source, cache, runner, offline=offline, allow_branch=allow_branch
+            )
         elif kind in {"http", "https", "url"}:
             resolved[source.id] = resolve_http(source, cache, client, offline=offline)
         elif kind == "local":
             path = Path(source.url).expanduser()
-            resolved[source.id] = resolve_local(
-                path if path.is_absolute() else manifest.base_dir / path, source.id
-            )
+            local = path if path.is_absolute() else manifest.base_dir / path
+            resolved[source.id] = resolve_local(local, source.id)
         else:
             raise ConfigError(f"unsupported source type '{source.type}' for '{source.id}'")
     return resolved
+
+
+def _with_sources(
+    manifest: Manifest, *, referenced_only: bool, offline: bool, allow_branch: bool
+) -> dict[str, ResolvedSource]:
+    client = httpx.Client(follow_redirects=True, timeout=30.0)
+    try:
+        return _resolve_sources(
+            manifest,
+            client,
+            referenced_only=referenced_only,
+            offline=offline,
+            allow_branch=allow_branch,
+        )
+    finally:
+        client.close()
 
 
 def _print_plan(plan: BuildPlan) -> None:
     console = Console()
     table = Table("Destination", "Kind", "Size")
     for entry in plan.entries:
-        table.add_row(entry.dest.as_posix(), entry.kind, _human_size(entry.size))
+        table.add_row(entry.dest.as_posix(), entry.kind, format_size(entry.size))
     console.print(table)
     console.print(
-        f"Content: {_human_size(plan.content_bytes)}  "
-        f"Overhead: {_human_size(plan.overhead_bytes)}  "
-        f"Reserve: {_human_size(plan.reserve_bytes)}"
-    )
-    console.print(
-        f"Partition: {_human_size(plan.partition_bytes)} at offset "
-        f"{_human_size(plan.partition_offset_bytes)}  "
-        f"Image: {_human_size(plan.image_bytes)}"
+        f"Content: {format_size(plan.content_bytes)}  "
+        f"Overhead: {format_size(plan.overhead_bytes)}  "
+        f"Reserve: {format_size(plan.reserve_bytes)}\n"
+        f"Partition: {format_size(plan.partition_bytes)} at offset "
+        f"{format_size(plan.partition_offset_bytes)}  "
+        f"Image: {format_size(plan.image_bytes)}"
     )
     for warning in plan.warnings:
         where = "" if warning.entry_index is None else f" [{warning.entry_index}]"
         console.print(f"Warning{where}: {warning.code}: {warning.message}")
-
-
-def _print_sources(sources: tuple[ResolvedSource, ...]) -> None:
-    table = Table("ID", "Type", "Root")
-    for source in sources:
-        table.add_row(source.id, source.kind, str(source.root))
-    Console().print(table)
 
 
 app = typer.Typer(
@@ -178,10 +161,7 @@ def main(
     ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output."),
 ) -> None:
-    """Build and flash Cannoli-ready SD card images for Android SBC devices.
-
-    Set --verbose for detailed output. Run a command with --help for its usage.
-    """
+    """Build and flash Cannoli-ready SD card images for Android SBC devices."""
     ctx.obj = AppState(verbose=verbose)
 
 
@@ -218,17 +198,9 @@ def plan(
 ) -> None:
     """Resolve sources, size the image, and print the planned card tree."""
     manifest = load_manifest(manifest_path)
-    client = httpx.Client(follow_redirects=True, timeout=30.0)
-    try:
-        resolved = _resolve_sources(
-            manifest,
-            client,
-            referenced_only=True,
-            offline=offline,
-            allow_branch=allow_branch,
-        )
-    finally:
-        client.close()
+    resolved = _with_sources(
+        manifest, referenced_only=True, offline=offline, allow_branch=allow_branch
+    )
     build = build_plan(manifest, resolved)
     if strict and build.warnings:
         first = build.warnings[0]
@@ -255,36 +227,66 @@ def fetch(
 ) -> None:
     """Populate the source cache from every declared source."""
     manifest = load_manifest(manifest_path)
-    client = httpx.Client(follow_redirects=True, timeout=30.0)
-    try:
-        resolved = _resolve_sources(
-            manifest,
-            client,
-            referenced_only=False,
-            offline=offline,
-            allow_branch=allow_branch,
-        )
-    finally:
-        client.close()
+    resolved = _with_sources(
+        manifest, referenced_only=False, offline=offline, allow_branch=allow_branch
+    )
     sources = tuple(resolved[source.id] for source in manifest.sources if source.id in resolved)
     if json_output:
         typer.echo(json.dumps(source_rows(sources)))
         return
-    _print_sources(sources)
+    for source in sources:
+        typer.echo(f"{source.id}\t{source.kind}\t{source.root}")
 
 
 @app.command()
 @_handle_errors
-def build(ctx: typer.Context) -> None:
-    """Build the card image (not implemented yet)."""
-    _not_implemented("build", "todo 17")
+def build(
+    ctx: typer.Context,
+    manifest_path: Annotated[
+        Path, typer.Option("--manifest", exists=True, dir_okay=False, help="Manifest path.")
+    ],
+    output: Annotated[Path | None, typer.Option("--output", help="Output image path.")] = None,
+    size: Annotated[str | None, typer.Option("--size", help="Image size or auto.")] = None,
+    reserve: Annotated[str | None, typer.Option("--reserve", help="Free space reserve.")] = None,
+    offline: bool = typer.Option(False, "--offline"),
+    force: bool = typer.Option(False, "--force"),
+    keep_work: bool = typer.Option(False, "--keep-work"),
+    allow_branch: bool = typer.Option(False, "--allow-branch"),
+    json_output: bool = typer.Option(False, "--json"),
+) -> None:
+    """Build, verify, and atomically publish a card image."""
+
+    def log(line: str) -> None:
+        typer.echo(line, err=True)
+
+    options = BuildOptions(
+        manifest_path=manifest_path,
+        output=output,
+        size=size,
+        reserve=reserve,
+        offline=offline,
+        force=force,
+        keep_work=keep_work,
+        allow_branch=allow_branch,
+    )
+    report = build_image(options, log=log)
+    if json_output:
+        typer.echo(json.dumps(report.payload()))
+        return
+    typer.echo(f"Image: {report.image}")
+    typer.echo(
+        f"Size: {format_size(report.image_bytes)}  SHA-256: {report.sha256}  "
+        f"Verified files: {report.verify.actual_files}"
+    )
+    for warning in report.warnings:
+        typer.echo(f"Warning: {warning.code}: {warning.message}")
 
 
 @app.command()
 @_handle_errors
 def image(ctx: typer.Context) -> None:
     """Flash a verified image to a removable card (not implemented yet)."""
-    _not_implemented("image", "todo 21")
+    raise ConfigError("image is not implemented yet", hint="See todo 21.")
 
 
 register_verify(app, _handle_errors)
