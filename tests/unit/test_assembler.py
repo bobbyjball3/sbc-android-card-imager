@@ -448,7 +448,7 @@ def test_assemble_when_umount_fails_lazy_unmount_and_detach_clean_up(
     assert not Path(str(out) + ".partial").exists()
 
 
-def test_assemble_when_unmount_persists_and_autoclear_detach_succeeds_raises_cleanup_error(
+def test_assemble_when_unmount_persists_raises_without_detaching(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     stage_dir, plan_path, out = _fixture(tmp_path)
@@ -465,7 +465,6 @@ def test_assemble_when_unmount_persists_and_autoclear_detach_succeeds_raises_cle
             _ok(),
             _fail(stderr="target is busy"),
             _fail(stderr="lazy target is busy"),
-            _ok(),
         ],
         work / "mnt",
     )
@@ -475,6 +474,7 @@ def test_assemble_when_unmount_persists_and_autoclear_detach_succeeds_raises_cle
 
     assert LOOP in str(caught.value)
     assert str(work / "mnt") in str(caught.value)
+    assert ["losetup", "-d", LOOP] not in runner.commands
     assert not out.exists()
     assert not Path(str(out) + ".partial").exists()
 

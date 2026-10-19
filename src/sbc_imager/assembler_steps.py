@@ -102,16 +102,11 @@ def cleanup(runner: Runner, state: MountState) -> None:
             with suppress(AssemblerError):
                 lazy_unmount(runner, mountpoint)
     if os.path.ismount(mountpoint):
-        if loop is not None:
-            with suppress(AssemblerError):
-                detach_loop(runner, loop)
-        if os.path.ismount(mountpoint):
-            target = f" (loop device {loop})" if loop is not None else ""
-            raise AssemblerError(
-                f"cleanup incomplete: {mountpoint} is still mounted{target}",
-                hint="unmount the path and detach the loop before retrying",
-            ) from unmount_error
-        return
+        target = f" (loop device {loop})" if loop is not None else ""
+        raise AssemblerError(
+            f"cleanup incomplete: {mountpoint} is still mounted{target}",
+            hint="unmount the path, then detach the loop before retrying",
+        ) from unmount_error
     if loop is None:
         return
     try:
