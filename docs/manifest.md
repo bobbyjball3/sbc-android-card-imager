@@ -78,9 +78,9 @@ ROMs, BIOS files, art, APKs, and generic artifacts must be local.
 Pinning rules:
 
 - **git:** `ref` must be a tag or an exact 40-hex commit. A branch is rejected
-  unless `--allow-branch` is passed; with that flag the branch is fetched and the
-  resolved commit is recorded in the cache metadata. No warning is printed.
-  Submodules and Git LFS are not supported.
+  unless `--allow-branch` is passed; with that flag the branch is fetched, the
+  resolved commit is recorded in the cache metadata, and `plan`/`fetch` each
+  print a `branch-ref` warning. Submodules and Git LFS are not supported.
 - **url:** the SHA-256 is mandatory, so an HTTPS download is pinned by content.
   `http://` is accepted but not recommended.
 - **local:** paths are not copied into the cache and are re-read on every build.
@@ -224,7 +224,7 @@ Errors stop the command with exit code 2 before image bytes are written:
 Warnings are non-fatal unless `plan --strict` is used:
 
 - `art-no-rom`, `junk-rom-file`, `missing-required-bios`, `non-nfc-name`,
-  `artifact-config`, `unused-source`, and `overlay-non-png`.
+  `artifact-config`, `unused-source`, `overlay-non-png`, and `branch-ref`.
 
 ## Size math
 

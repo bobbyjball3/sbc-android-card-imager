@@ -7,7 +7,7 @@ import json
 import sys
 import traceback
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Annotated
 
@@ -23,10 +23,17 @@ from sbc_imager.cli_image import register as register_image
 from sbc_imager.cli_verify import register as register_verify
 from sbc_imager.config import Manifest, load_manifest
 from sbc_imager.errors import ConfigError, SbcImagerError
-from sbc_imager.planner import BuildPlan, build_plan, plan_payload, source_rows
+from sbc_imager.planner import (
+    BuildPlan,
+    build_plan,
+    plan_payload,
+    source_rows,
+    source_warnings,
+)
 from sbc_imager.runner import SubprocessRunner
 from sbc_imager.sizes import format_size
 from sbc_imager.sources import ResolvedSource, SourceCache, resolve_git, resolve_http, resolve_local
+from sbc_imager.validation import Warning
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,6 +130,11 @@ def _with_sources(
         client.close()
 
 
+def _warning_text(warning: Warning) -> str:
+    where = "" if warning.entry_index is None else f" [{warning.entry_index}]"
+    return f"Warning{where}: {warning.code}: {warning.message}"
+
+
 def _print_plan(plan: BuildPlan) -> None:
     console = Console()
     table = Table("Destination", "Kind", "Size")
@@ -138,8 +150,7 @@ def _print_plan(plan: BuildPlan) -> None:
         f"Image: {format_size(plan.image_bytes)}"
     )
     for warning in plan.warnings:
-        where = "" if warning.entry_index is None else f" [{warning.entry_index}]"
-        console.print(f"Warning{where}: {warning.code}: {warning.message}")
+        console.print(_warning_text(warning))
 
 
 app = typer.Typer(
@@ -232,11 +243,21 @@ def fetch(
         manifest, referenced_only=False, offline=offline, allow_branch=allow_branch
     )
     sources = tuple(resolved[source.id] for source in manifest.sources if source.id in resolved)
+    warnings = source_warnings(manifest, resolved)
     if json_output:
-        typer.echo(json.dumps(source_rows(sources)))
+        rows = source_rows(sources)
+        by_id = {source.id: row for source, row in zip(sources, rows, strict=True)}
+        for warning in warnings:
+            if warning.entry_index is None:
+                continue
+            source_id = manifest.sources[warning.entry_index].id
+            by_id[source_id]["warnings"] = [asdict(warning)]
+        typer.echo(json.dumps(rows))
         return
     for source in sources:
         typer.echo(f"{source.id}\t{source.kind}\t{source.root}")
+    for warning in warnings:
+        typer.echo(_warning_text(warning))
 
 
 @app.command()

@@ -91,12 +91,12 @@ def test_manifest_doc_when_read_scopes_shader_validation_to_local_directories() 
     assert "is not pre-validated for a root `.glslp`" in text
 
 
-def test_manifest_doc_when_read_does_not_claim_a_branch_warning() -> None:
+def test_manifest_doc_when_read_documents_the_branch_warning() -> None:
     text = _normalized(MANIFEST_DOC)
 
-    assert "No warning is printed" in text
+    assert "No warning is printed" not in text
     assert "resolved commit is recorded in the cache metadata" in text
-    assert "branch warning" not in text
+    assert "print a `branch-ref` warning" in text
 
 
 def test_manifest_doc_when_read_scopes_symlink_checks_to_local_typed_paths() -> None:

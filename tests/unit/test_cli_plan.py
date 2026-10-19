@@ -167,6 +167,76 @@ def test_fetch_when_local_git_source_populates_the_cache(tmp_path: Path, _cache:
     assert meta["url"] == str(bare)
 
 
+def _git_manifest(bare: Path, ref: str) -> str:
+    return (
+        '[[source]]\nid = "assets"\ntype = "git"\n'
+        f'url = "{bare}"\nref = "{ref}"\n'
+        'license = "MIT"\nattribution = "Tests"\n\n'
+        '[[overlay]]\nplatform = "GBA"\npath = "gba/bezel.png"\nsource = "assets"\n'
+    )
+
+
+def test_plan_when_branch_ref_allowed_prints_warning(tmp_path: Path, _cache: Path) -> None:
+    bare, _ = _bare_repo(tmp_path)
+    manifest = _manifest(tmp_path, _git_manifest(bare, "main"))
+
+    result = runner.invoke(app, ["plan", "--manifest", str(manifest), "--allow-branch"])
+
+    assert result.exit_code == 0, result.stderr
+    assert "branch-ref" in result.stdout
+    assert "allow-branch" in result.stdout
+
+
+def test_plan_when_branch_ref_allowed_includes_json_warning(tmp_path: Path, _cache: Path) -> None:
+    bare, _ = _bare_repo(tmp_path)
+    manifest = _manifest(tmp_path, _git_manifest(bare, "main"))
+
+    result = runner.invoke(app, ["plan", "--manifest", str(manifest), "--allow-branch", "--json"])
+
+    assert result.exit_code == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert [warning["code"] for warning in payload["warnings"]] == ["branch-ref"]
+    assert "allow-branch" in payload["warnings"][0]["message"]
+
+
+def test_fetch_when_branch_ref_allowed_prints_warning(tmp_path: Path, _cache: Path) -> None:
+    bare, _ = _bare_repo(tmp_path)
+    manifest = _manifest(tmp_path, _git_manifest(bare, "main"))
+
+    result = runner.invoke(app, ["fetch", "--manifest", str(manifest), "--allow-branch"])
+
+    assert result.exit_code == 0, result.stderr
+    assert "branch-ref" in result.stdout
+    assert "allow-branch" in result.stdout
+
+
+def test_fetch_when_branch_ref_allowed_includes_json_warning(tmp_path: Path, _cache: Path) -> None:
+    bare, _ = _bare_repo(tmp_path)
+    manifest = _manifest(tmp_path, _git_manifest(bare, "main"))
+
+    result = runner.invoke(app, ["fetch", "--manifest", str(manifest), "--allow-branch", "--json"])
+
+    assert result.exit_code == 0, result.stderr
+    rows = json.loads(result.stdout)
+    assert [warning["code"] for warning in rows[0]["warnings"]] == ["branch-ref"]
+    assert "allow-branch" in rows[0]["warnings"][0]["message"]
+
+
+def test_plan_and_fetch_when_pinned_commit_emit_no_branch_warning(
+    tmp_path: Path, _cache: Path
+) -> None:
+    bare, commit = _bare_repo(tmp_path)
+    manifest = _manifest(tmp_path, _git_manifest(bare, commit))
+
+    planned = runner.invoke(app, ["plan", "--manifest", str(manifest), "--json"])
+    fetched = runner.invoke(app, ["fetch", "--manifest", str(manifest), "--json"])
+
+    assert planned.exit_code == 0, planned.stderr
+    assert fetched.exit_code == 0, fetched.stderr
+    assert json.loads(planned.stdout)["warnings"] == []
+    assert "warnings" not in json.loads(fetched.stdout)[0]
+
+
 def test_fetch_when_cache_is_warm_offline_hits(tmp_path: Path, _cache: Path) -> None:
     bare, commit = _bare_repo(tmp_path)
     manifest = _manifest(

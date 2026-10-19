@@ -158,8 +158,25 @@ def _ordered_sources(
     return tuple(ordered)
 
 
-def source_rows(sources: tuple[ResolvedSource, ...]) -> list[dict[str, str]]:
+def source_rows(sources: tuple[ResolvedSource, ...]) -> list[dict[str, object]]:
     return [{"id": source.id, "type": source.kind, "root": str(source.root)} for source in sources]
+
+
+def source_warnings(
+    manifest: Manifest, resolved_sources: Mapping[str, ResolvedSource]
+) -> list[Warning]:
+    """Lift resolver metadata warnings into the shared ``Warning`` schema."""
+    warnings: list[Warning] = []
+    for index, source in enumerate(manifest.sources):
+        resolved = resolved_sources.get(source.id)
+        if resolved is None:
+            continue
+        message = resolved.metadata.get("warning")
+        if message:
+            warnings.append(
+                Warning("branch-ref", f"source[{index}] '{source.id}': {message}", index)
+            )
+    return warnings
 
 
 def plan_payload(plan: BuildPlan) -> dict[str, object]:
@@ -249,6 +266,7 @@ def build_plan(
     if size is not None:
         effective = replace(manifest, image=replace(manifest.image, size=size))
     warnings = validate_manifest(effective)
+    warnings.extend(source_warnings(manifest, resolved_sources))
     entries = [
         planned
         for destination in iter_destinations(manifest)
