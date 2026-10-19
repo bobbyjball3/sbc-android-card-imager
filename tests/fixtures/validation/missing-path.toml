@@ -1,0 +1,3 @@
+[[rom]]
+platform = "GBA"
+path = "does-not-exist"
