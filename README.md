@@ -6,10 +6,10 @@ make this somewhat flexible, but my real target is myself, so it may not do what
 you want, how you want it.
 
 The tool turns a plain-text TOML manifest into a Cannoli-ready card image. It
-plans every destination, fetches pinned local/git/HTTPS sources into a cache,
-stages the tree, assembles an uncompressed MBR + exFAT `.img` in a pinned Linux
-container, verifies the filesystem and every file hash, and can flash the result
-to a removable card on macOS.
+plans every destination, fetches pinned local/git/HTTPS/GitHub sources into a
+cache, stages the tree, assembles an uncompressed MBR + exFAT `.img` in a pinned
+Linux container, verifies the filesystem and every file hash, and can flash the
+result to a removable card on macOS.
 
 ## What it does
 
@@ -130,6 +130,26 @@ ROMs, BIOS files, and box art are not manifest inputs: Cannoli/RomM supplies
 those files on the card. The manifest creates their directory skeleton but does
 not copy or download their contents.
 
+A pinned GitHub release asset can feed an APK entry. Only exact tags are
+supported in Phase 1; there is no `latest` or other mutable release selector.
+
+```toml
+[[source]]
+id = "obtainium"
+type = "github"
+repo = "ImranR98/Obtainium"
+tag = "v1.7.1"
+asset = "app-arm64-v8a-release.apk"
+
+[[apk]]
+source = "obtainium"
+as = "Obtainium.apk"
+```
+
+The asset is selected by exact file name, its SHA-256/license/attribution are
+detected and cached, and it lands at `APKs/Obtainium.apk`. See
+[`examples/obtainium.toml`](examples/obtainium.toml).
+
 Relative `path`, `output`, and local source `url` values resolve against the
 manifest's directory; `~` expands to your home directory. The bundled
 [`examples/imager.toml`](examples/imager.toml) uses only the placeholder files in
@@ -172,8 +192,9 @@ generated data, emulator cores, and app-private data are never included.
   does not run `adb`, install packages, or manage apps.
 - **ROMs, BIOS files, and box art are RomM-supplied.** Cannoli/RomM provides
   those files on the card; this tool does not download or copy them. Remote
-  sources are supported only for `[[overlay]]` and `[[shader]]`. The repository
-  contains no copyrighted ROMs or BIOS files.
+  sources are supported for `[[overlay]]`, `[[shader]]`, and single-file
+  `[[apk]]` entries; GitHub APK sources require an exact tag and asset name.
+  The repository contains no copyrighted ROMs or BIOS files.
 - **No zero-touch first boot.** The card preselects Cannoli as an existing
   install and ships every platform folder, but you still configure emulators,
   cores, and settings on first launch.

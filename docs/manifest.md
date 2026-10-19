@@ -39,7 +39,11 @@ not.
   path inside that source's resolved root (or the source's `subdir`); it must be
   relative and must not contain `..`.
 - `[[source]]` with `type = "local"` uses `url` as a local path, resolved against
-  the manifest directory when relative.
+  the manifest directory when relative. `type = "github"` uses `repo`, `tag`, and
+  `asset` instead of `url`.
+- For `[[apk]]`, a missing `source` means `path` is a local file or directory.
+  With `source`, `path` is not allowed and `as` names the single file that the
+  GitHub source resolves to.
 - `[image].output` resolves against the manifest directory; the default is
   `dist/<name>.img`.
 - `as` values are a single filename component, never a path. They rename a file
@@ -61,20 +65,23 @@ errors.
 
 ## [[source]]
 
-Remote sources may be referenced only by `[[overlay]]` and `[[shader]]` entries.
-APKs and generic artifacts must be local.
+Remote sources may be referenced by `[[overlay]]`, `[[shader]]`, and `[[apk]]`
+entries. Generic artifacts must be local.
 
 | Key | Type | Required | Meaning |
 | --- | --- | --- | --- |
-| `id` | string | yes | Unique source identifier used by overlays/shaders. |
-| `type` | string | yes | `local`, `git`, or `url` (HTTP/HTTPS download). |
-| `url` | string | yes | Git URL, HTTP(S) URL, or local path for `local`. |
+| `id` | string | yes | Unique source identifier used by typed entries. |
+| `type` | string | yes | `local`, `git`, `url` (HTTP/HTTPS download), or `github`. |
+| `url` | string | except `github` | Git URL, HTTP(S) URL, or local path for `local`. |
 | `ref` | string | for `git` | Tag or 40-character commit SHA. |
 | `subdir` | string | no | Relative directory inside the git checkout. |
 | `filename` | string | no | HTTPS filename; defaults to the URL basename. |
-| `sha256` | string | for `url` | 64-character lowercase hex SHA-256 of the download. |
-| `license` | string | for remote | License of the fetched content; also written to `CREDITS.md`. |
-| `attribution` | string | for remote | Attribution text; also written to `CREDITS.md`. |
+| `repo` | string | for `github` | Repository in `owner/name` form. |
+| `tag` | string | for `github` | Exact release tag to resolve. |
+| `asset` | string | for `github` | Exact release asset file name. |
+| `sha256` | string | for `url` | 64-character lowercase hex SHA-256 of the download. Optional override for `github`. |
+| `license` | string | for remote | License of the fetched content; also written to `CREDITS.md`. Optional override for `github`. |
+| `attribution` | string | for remote | Attribution text; also written to `CREDITS.md`. Optional override for `github`. |
 
 Pinning rules:
 
@@ -84,11 +91,21 @@ Pinning rules:
   print a `branch-ref` warning. Submodules and Git LFS are not supported.
 - **url:** the SHA-256 is mandatory, so an HTTPS download is pinned by content.
   `http://` is accepted but not recommended.
+- **github:** only an exact `tag` is supported. Mutable selectors such as
+  `release = "latest"` are deliberately not implemented in this phase. The
+  asset is selected by exact `name == asset`; it is never guessed. The resolver
+  reads the release API digest when present, otherwise it downloads the asset
+  and computes the SHA-256. `sha256`, `license`, and `attribution` are optional
+  overrides. The license falls back to the repository `license.spdx_id`; a
+  missing or `NOASSERTION` license requires an explicit `license` override. The
+  attribution falls back to `"<repo> (<release html_url>)"`. Set `GITHUB_TOKEN`
+  to authenticate API requests and raise rate limits; the token is never logged
+  or written to `CREDITS.md`.
 - **local:** paths are not copied into the cache and are re-read on every build.
 
 Duplicate source ids are rejected. `plan` resolves only sources referenced by an
-overlay or shader; `fetch` resolves every declared source; `build` resolves the
-sources it needs. An unused source produces a warning.
+overlay, shader, or APK; `fetch` resolves every declared source; `build`
+resolves the sources it needs. An unused source produces a warning.
 
 ## Typed entries
 
@@ -135,10 +152,14 @@ Destination: `Cannoli/Shaders/<preset>/...`.
 
 | Key | Type | Required | Meaning |
 | --- | --- | --- | --- |
-| `path` | string | yes | Local `.apk` file or directory. |
-| `as` | string | no | Rename a file, or prefix a directory. |
+| `path` | string | without `source` | Local `.apk` file or directory. |
+| `source` | string | no | A declared `[[source]].id`; single-file GitHub APK only. |
+| `as` | string | with `source` | Rename the source APK; must end in `.apk`. |
 
-APKs are copied only; they are never installed. Destination: `APKs/`.
+APKs are copied only; they are never installed. Destination: `APKs/`. With
+`source`, Phase 1 supports exactly one resolved file. The source root must be a
+file, not a directory, and `path` cannot also be set. A source APK does not
+require `license`/`attribution` entries because GitHub resolution detects them.
 
 ### [[artifact]]
 
@@ -161,7 +182,11 @@ Errors stop the command with exit code 2 before image bytes are written:
   required keys, and duplicate `[[source]].id` values.
 - The retired `[[rom]]`, `[[bios]]`, and `[[art]]` tables; those files are
   supplied by Cannoli/RomM.
-- `source` on an APK or artifact entry (it is an unknown key).
+- `repo`/`tag`/`asset` on a non-GitHub source, `url`/`ref`/`subdir`/`filename`
+  on a GitHub source, and a `repo` that is not `owner/name`.
+- A GitHub `asset` that is not a plain file name, or a `[[apk]]` that sets both
+  `source` and `path`, or sets `source` without `as`.
+- `source` on an artifact entry (it is an unknown key).
 - Unknown or case-ambiguous platform tags on `[[overlay]]`. Tags are normalized
   to the canonical uppercase form from the pinned Cannoli registry.
 - A missing local path, or a symlink/special file in a local typed `path` tree
@@ -171,6 +196,8 @@ Errors stop the command with exit code 2 before image bytes are written:
   declared and are not scanned for symlinks or special files by validation.
 - An overlay that is not `.png`; a shader file that is not `.glslp` or a local
   shader directory with no root `.glslp`; an APK that is not `.apk`.
+- A source APK whose `as` is not `.apk`, or whose resolved source root is a
+  directory rather than one file.
 - A typed entry that produces zero files.
 - exFAT-invalid path components: the characters `\ / : * ? " < > |`, control
   characters, a trailing dot or space, the reserved names `CON`, `PRN`, `AUX`,
@@ -227,11 +254,17 @@ Override it with `SBC_IMAGER_CACHE_DIR`.
   resolved commit, and fetch time.
 - HTTPS files are stored under `<cache>/http/<sha256>/<filename>` and are only
   published after the digest matches.
+- GitHub releases are keyed by `sha256("github" + "\0" + repo + "\0" + tag +
+  "\0" + asset)` and stored under `<cache>/github/<key>/`. The asset lives at
+  `<key>/files/<asset>` and provenance at `<key>/source.json`, including the
+  repo, tag, asset, download URL, SHA-256, size, license, attribution, and
+  release URL.
 - Local paths are never cached.
 
-`--offline` forbids network access and requires a valid cached git checkout or
-HTTP file. A missing or stale cache entry fails with exit code 1 and names the
-cache key or checksum. `fetch --offline` is a cache check, not a download.
+`--offline` forbids network access and requires a valid cached git checkout,
+HTTP file, or GitHub asset plus its `source.json`. A missing, stale, or corrupt
+cache entry fails with exit code 1 and names the cache key or checksum.
+`fetch --offline` is a cache check, not a download.
 
 ## Exit codes
 
@@ -333,6 +366,31 @@ path = "crt/crt.glslp"
 source = "crt"
 as = "crt.glslp"
 ```
+
+### Pinned GitHub release APK (valid)
+
+<!-- valid-manifest -->
+```toml
+[image]
+name = "obtainium"
+size = "auto"
+reserve = "1MiB"
+output = "dist/obtainium.img"
+
+[[source]]
+id = "obtainium"
+type = "github"
+repo = "ImranR98/Obtainium"
+tag = "v1.7.1"
+asset = "app-arm64-v8a-release.apk"
+
+[[apk]]
+source = "obtainium"
+as = "Obtainium.apk"
+```
+
+The release must be pinned by exact `tag`; `release = "latest"` is not supported
+in Phase 1. The asset is selected by exact name and lands at `APKs/Obtainium.apk`.
 
 ### Pinned size with a reserve (valid)
 

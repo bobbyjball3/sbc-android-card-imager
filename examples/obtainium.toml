@@ -1,0 +1,16 @@
+[image]
+name = "obtainium"
+size = "auto"
+reserve = "1MiB"
+output = "dist/obtainium.img"
+
+[[source]]
+id = "obtainium"
+type = "github"
+repo = "ImranR98/Obtainium"
+tag = "v1.7.1"
+asset = "app-arm64-v8a-release.apk"
+
+[[apk]]
+source = "obtainium"
+as = "Obtainium.apk"

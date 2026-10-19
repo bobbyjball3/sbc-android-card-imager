@@ -59,7 +59,8 @@ payload-only: it does not download ROMs, install APKs, or provide zero-touch fir
   - `cli.py`, `cli_image.py`, `cli_verify.py` - Typer app and command registration
   - `config.py` - strict manifest parsing into frozen dataclasses
   - `cannoli.py` - pinned platform registry and on-card path contract
-  - `sources.py`, `sources_git.py` - content-addressed cache and pinned source resolution
+  - `sources.py`, `sources_git.py`, `sources_github.py` - content-addressed cache
+    and pinned local/git/HTTP/GitHub source resolution
   - `planner.py`, `validation*.py`, `staging.py` - destination mapping, rules, and staging
   - `assembler*.py`, `mbr.py`, `container.py`, `build.py`, `verify.py` - image assembly,
     container invocation, orchestration, and verification
@@ -94,11 +95,20 @@ there is no permissive fallback. Relative paths resolve against the manifest dir
 and `[image].size` supports `auto` or human-readable units (`reserve` likewise). Typed
 entries map to `Cannoli/Overlays/<TAG>`, `Cannoli/Shaders/<preset>`, and root `APKs/`;
 generic artifacts target an explicit root and destination, including the retained
-`Cannoli/Roms/<TAG>`, `Cannoli/BIOS`, and `Cannoli/Art` skeleton. Overlays and shaders
-may reference a `source` id instead of a local path.
+`Cannoli/Roms/<TAG>`, `Cannoli/BIOS`, and `Cannoli/Art` skeleton. Overlays,
+shaders, and APKs may reference a `source` id instead of a local path.
 Git sources require a pinned `ref` (commit or tag; branches need `--allow-branch`) and
-HTTP sources require a pinned lowercase `sha256`. The cache lives under the platform cache
-directory, can be overridden with `SBC_IMAGER_CACHE_DIR`, and supports `--offline`.
+HTTP sources require a pinned lowercase `sha256`. GitHub sources require `type =
+"github"`, `repo = "owner/name"`, an exact `tag`, and an exact `asset` file name.
+Phase 1 deliberately has no `latest` or other mutable release selector. GitHub
+resolution reads `digest`, `license.spdx_id`, and the release `html_url` from the
+REST API, caches `source.json` plus the asset under `github/<key>/`, and supports
+`--offline` for the exact pinned asset. `sha256`/`license`/`attribution` are
+optional overrides; never auto-pick an asset. APK entries may use `source = ...`
+with `as` instead of `path`, but only for a source that resolves to a single
+file; source APK directories are rejected. The cache lives under the platform
+cache directory, can be overridden with `SBC_IMAGER_CACHE_DIR`, and supports
+`--offline`.
 Validation enforces Cannoli tags, exFAT-safe names, duplicate/colliding destinations, and
 required assets before anything is staged. A branch ref allowed with `--allow-branch` emits
 a `branch-ref` warning from `plan` and `fetch`; `plan --json` puts it in `warnings`, while
