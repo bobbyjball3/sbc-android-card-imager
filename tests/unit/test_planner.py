@@ -450,3 +450,79 @@ def test_build_plan_when_github_credits_include_release_provenance(tmp_path: Pat
     release = "https://github.com/ImranR98/Obtainium/releases/tag/v1.7.1"
     assert f"ImranR98/Obtainium ({release})" in credits
     assert release in credits
+
+
+GITHUB_ARTIFACT = """
+[image]
+name = "pack"
+size = "auto"
+reserve = "1MiB"
+
+[[source]]
+id = "pack"
+type = "github"
+repo = "RJNY/Obtainium-Emulation-Pack"
+tag = "v8.0.1"
+asset = "obtainium-emulation-pack-v8.0.1.json"
+
+[[artifact]]
+root = "card"
+dest = "Obtainium"
+source = "pack"
+as = "obtainium-emulation-pack-v8.0.1.json"
+"""
+
+
+def _artifact_resolved(root: Path) -> dict[str, ResolvedSource]:
+    return {
+        "pack": ResolvedSource(
+            id="pack",
+            root=root,
+            kind="github",
+            metadata={
+                "repo": "RJNY/Obtainium-Emulation-Pack",
+                "tag": "v8.0.1",
+                "asset": "obtainium-emulation-pack-v8.0.1.json",
+                "sha256": "c2170687b07881f5891fe9751903c13c31b80de506bd41b718f99abb45592169",
+                "size": "2",
+                "license": "Unlicense",
+                "attribution": "RJNY/Obtainium-Emulation-Pack "
+                "(https://github.com/RJNY/Obtainium-Emulation-Pack/releases/tag/v8.0.1)",
+                "release_url": (
+                    "https://github.com/RJNY/Obtainium-Emulation-Pack/releases/tag/v8.0.1"
+                ),
+            },
+        )
+    }
+
+
+def test_build_plan_when_artifact_source_is_a_file_plans_destination(tmp_path: Path) -> None:
+    source = _touch(tmp_path / "cache" / "pack.json", b"{}")
+    manifest = _manifest(tmp_path, GITHUB_ARTIFACT)
+
+    plan = build_plan(manifest, _artifact_resolved(source))
+
+    assert [entry.dest for entry in plan.entries] == [
+        PurePosixPath("Obtainium/obtainium-emulation-pack-v8.0.1.json")
+    ]
+    assert plan.entries[0].kind == "artifact"
+    assert plan.entries[0].src == source
+    assert plan.entries[0].size == 2
+    assert plan.entries[0].source_id == "pack"
+    assert plan.content_bytes == 2
+
+
+def test_build_plan_when_artifact_source_is_a_directory_raises(tmp_path: Path) -> None:
+    root = tmp_path / "cache"
+    _touch(root / "pack.json", b"{}")
+    manifest = _manifest(tmp_path, GITHUB_ARTIFACT)
+
+    with pytest.raises(ConfigError, match="artifact-source-directory"):
+        build_plan(manifest, _artifact_resolved(root))
+
+
+def test_build_plan_when_artifact_source_is_not_resolved_raises(tmp_path: Path) -> None:
+    manifest = _manifest(tmp_path, GITHUB_ARTIFACT)
+
+    with pytest.raises(ConfigError, match="missing-source-resolution"):
+        build_plan(manifest, {})

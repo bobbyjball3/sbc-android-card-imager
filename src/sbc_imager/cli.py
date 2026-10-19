@@ -89,7 +89,12 @@ def _resolve_sources(
     allow_branch: bool,
 ) -> dict[str, ResolvedSource]:
     cache, runner = SourceCache(), SubprocessRunner()
-    entries = (*manifest.overlays, *manifest.shaders, *manifest.apks)
+    entries = (
+        *manifest.overlays,
+        *manifest.shaders,
+        *manifest.apks,
+        *manifest.artifacts,
+    )
     wanted = (
         {entry.source for entry in entries if entry.source is not None}
         if referenced_only

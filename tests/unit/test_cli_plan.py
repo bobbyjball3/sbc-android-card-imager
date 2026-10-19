@@ -383,3 +383,77 @@ def test_plan_when_github_source_resolves_apk_plans_apks_destination(
     assert payload["entries"][0]["source"] == "obtainium"
     assert [source["type"] for source in payload["sources"]] == ["github"]
     assert calls == ["obtainium"]
+
+
+GITHUB_ARTIFACT = """
+[image]
+name = "pack"
+size = "auto"
+reserve = "1MiB"
+output = "dist/pack.img"
+
+[[source]]
+id = "pack"
+type = "github"
+repo = "RJNY/Obtainium-Emulation-Pack"
+tag = "v8.0.1"
+asset = "obtainium-emulation-pack-v8.0.1.json"
+
+[[artifact]]
+root = "card"
+dest = "Obtainium"
+source = "pack"
+as = "obtainium-emulation-pack-v8.0.1.json"
+"""
+
+
+def test_plan_when_github_source_resolves_artifact_plans_destination(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sbc_imager.config import SourceConfig
+    from sbc_imager.sources import ResolvedSource
+
+    pack = _touch(tmp_path / "cache" / "pack.json", b"{}")
+    manifest = _manifest(tmp_path, GITHUB_ARTIFACT)
+    calls: list[str] = []
+
+    def fake_resolve(
+        entry: SourceConfig,
+        cache: object,
+        client: object,
+        *,
+        offline: bool = False,
+    ) -> ResolvedSource:
+        del cache, client, offline
+        calls.append(entry.id)
+        return ResolvedSource(
+            id=entry.id,
+            root=pack,
+            kind="github",
+            metadata={
+                "repo": "RJNY/Obtainium-Emulation-Pack",
+                "tag": "v8.0.1",
+                "asset": "obtainium-emulation-pack-v8.0.1.json",
+                "sha256": "0" * 64,
+                "size": str(pack.stat().st_size),
+                "license": "Unlicense",
+                "attribution": "RJNY/Obtainium-Emulation-Pack",
+                "release_url": (
+                    "https://github.com/RJNY/Obtainium-Emulation-Pack/releases/tag/v8.0.1"
+                ),
+            },
+        )
+
+    monkeypatch.setattr("sbc_imager.cli.resolve_github", fake_resolve)
+
+    result = runner.invoke(app, ["plan", "--manifest", str(manifest), "--json"])
+
+    assert result.exit_code == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert [entry["dest"] for entry in payload["entries"]] == [
+        "Obtainium/obtainium-emulation-pack-v8.0.1.json"
+    ]
+    assert payload["entries"][0]["kind"] == "artifact"
+    assert payload["entries"][0]["source"] == "pack"
+    assert [source["type"] for source in payload["sources"]] == ["github"]
+    assert calls == ["pack"]

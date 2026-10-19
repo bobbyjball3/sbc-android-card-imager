@@ -327,3 +327,43 @@ def test_verify_image_when_dirs_listing_is_missing_raises(
 
     with pytest.raises(VerificationError, match="directory"):
         _run_pipeline(tmp_path)
+
+
+def test_resolve_sources_when_artifact_references_source_resolves_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sbc_imager import verify
+
+    pack = _touch(tmp_path / "cache" / "pack.json", b"{}")
+    manifest_path = tmp_path / "imager.toml"
+    manifest_path.write_text(
+        '[[source]]\nid = "pack"\ntype = "github"\n'
+        'repo = "RJNY/Obtainium-Emulation-Pack"\ntag = "v8.0.1"\n'
+        'asset = "pack.json"\n\n'
+        '[[artifact]]\nroot = "card"\ndest = "Obtainium"\nsource = "pack"\nas = "pack.json"\n',
+        encoding="utf-8",
+    )
+    manifest = load_manifest(manifest_path)
+
+    def fake_resolve(
+        entry: object, cache: object, client: object, *, offline: bool = False
+    ) -> object:
+        del entry, cache, client, offline
+        from sbc_imager.sources import ResolvedSource
+
+        return ResolvedSource(id="pack", root=pack, kind="github", metadata={})
+
+    monkeypatch.setattr("sbc_imager.verify.resolve_github", fake_resolve)
+    with httpx.Client() as client:
+        resolved = verify._resolve_sources(
+            manifest,
+            SourceCache(tmp_path / "cache"),
+            FakeRunner(),
+            client,
+            offline=False,
+            allow_branch=False,
+        )
+
+    assert list(resolved) == ["pack"]
+    expected = build_expected(manifest, resolved)
+    assert "Obtainium/pack.json" in expected.files

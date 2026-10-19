@@ -158,6 +158,31 @@ def _expand(
                 source_id,
             )
         ]
+    if destination.kind == "artifact":
+        entry = manifest.artifacts[destination.entry_index]
+        source_id = entry.source
+        if not isinstance(source_id, str):
+            raise ConfigError(f"unmapped-destination: {destination.dest.as_posix()!r}")
+        resolved = resolved_sources.get(source_id)
+        if resolved is None:
+            raise ConfigError(
+                f"missing-source-resolution: artifact[{destination.entry_index}] "
+                f"references source '{source_id}'"
+            )
+        if not resolved.root.is_file():
+            raise ConfigError(
+                f"artifact-source-directory: artifact[{destination.entry_index}] "
+                f"source '{source_id}' must resolve to a single file"
+            )
+        return [
+            _planned(
+                destination.dest,
+                resolved.root,
+                "artifact",
+                destination.entry_index,
+                source_id,
+            )
+        ]
     entries = manifest.overlays if destination.kind == "overlay" else manifest.shaders
     entry = entries[destination.entry_index]
     source_id = entry.source

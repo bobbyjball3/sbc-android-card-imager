@@ -85,7 +85,12 @@ def _resolve_sources(
     offline: bool,
     allow_branch: bool,
 ) -> dict[str, ResolvedSource]:
-    entries = (*manifest.overlays, *manifest.shaders, *manifest.apks)
+    entries = (
+        *manifest.overlays,
+        *manifest.shaders,
+        *manifest.apks,
+        *manifest.artifacts,
+    )
     wanted = {entry.source for entry in entries if isinstance(entry.source, str)}
     resolved: dict[str, ResolvedSource] = {}
     for source in manifest.sources:
