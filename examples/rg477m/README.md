@@ -75,7 +75,7 @@ Run from the repository root:
 ```shell
 uv run sbc-imager plan --manifest examples/rg477m/rg477m.toml
 uv run sbc-imager build --manifest examples/rg477m/rg477m.toml
-uv run sbc-imager verify --manifest examples/rg477m/rg477m.toml --image dist/rg477m.img
+uv run sbc-imager verify --manifest examples/rg477m/rg477m.toml --image examples/rg477m/dist/rg477m.img
 ```
 
 The first build resolves both GitHub sources and caches them. Later builds can
