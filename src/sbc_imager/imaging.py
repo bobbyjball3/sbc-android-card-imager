@@ -12,6 +12,8 @@ from rich.console import Console
 from rich.table import Table
 
 from sbc_imager.errors import SafetyError
+from sbc_imager.imaging_write import WriteResult as WriteResult
+from sbc_imager.imaging_write import write_image as write_image
 from sbc_imager.runner import Runner
 from sbc_imager.sizes import format_size
 
