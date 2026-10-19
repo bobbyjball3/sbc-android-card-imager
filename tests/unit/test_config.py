@@ -332,3 +332,44 @@ def test_load_manifest_when_apk_source_has_no_as_raises(tmp_path: Path) -> None:
         load_manifest(path)
 
     assert "as" in caught.value.message
+
+
+def test_load_manifest_when_artifact_source_parses_without_path(tmp_path: Path) -> None:
+    path = _write(
+        tmp_path,
+        '[[artifact]]\nroot = "card"\ndest = "Obtainium"\nsource = "pack"\nas = "pack.json"\n',
+    )
+
+    manifest = load_manifest(path)
+
+    entry = manifest.artifacts[0]
+    assert entry.path is None
+    assert entry.source == "pack"
+    assert entry.as_ == "pack.json"
+    assert entry.root == "card"
+    assert entry.dest == "Obtainium"
+
+
+def test_load_manifest_when_artifact_has_source_and_path_raises(tmp_path: Path) -> None:
+    path = _write(
+        tmp_path,
+        '[[artifact]]\ndest = "Obtainium"\npath = "pack.json"\nsource = "pack"\nas = "pack.json"\n',
+    )
+
+    with pytest.raises(ConfigError) as caught:
+        load_manifest(path)
+
+    assert "path" in caught.value.message
+    assert "source" in caught.value.message
+
+
+def test_load_manifest_when_artifact_source_has_no_as_raises(tmp_path: Path) -> None:
+    path = _write(
+        tmp_path,
+        '[[artifact]]\ndest = "Obtainium"\nsource = "pack"\n',
+    )
+
+    with pytest.raises(ConfigError) as caught:
+        load_manifest(path)
+
+    assert "as" in caught.value.message

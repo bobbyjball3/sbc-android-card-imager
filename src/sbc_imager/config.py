@@ -34,7 +34,7 @@ _KEYS: Final[dict[str, frozenset[str]]] = {
     "overlay": frozenset({"platform", "path", "source", "as"}),
     "shader": frozenset({"path", "source", "as"}),
     "apk": frozenset({"path", "source", "as"}),
-    "artifact": frozenset({"root", "dest", "path", "as"}),
+    "artifact": frozenset({"root", "dest", "path", "source", "as"}),
 }
 
 _RETIRED_TABLES: Final[dict[str, str]] = {
@@ -103,7 +103,8 @@ class ApkEntry:
 class ArtifactEntry:
     root: str
     dest: str
-    path: Path
+    path: Path | None
+    source: str | None
     as_: str | None
 
 
@@ -305,10 +306,25 @@ class _ManifestParser:
 
     def _artifact(self, table: _Table, index: int) -> ArtifactEntry:
         where = f"artifact[{index}]"
+        source = self._text(table, "source", where)
+        if source is not None:
+            if self._text(table, "path", where) is not None:
+                _fail(f"{where} cannot set both 'path' and 'source' in manifest {self.path}")
+            as_ = self._required_text(table, "as", where)
+            if not as_:
+                _fail(f"{where} requires a non-empty 'as' in manifest {self.path}")
+            return ArtifactEntry(
+                _default(self._text(table, "root", where), "cannoli"),
+                self._required_text(table, "dest", where),
+                None,
+                source,
+                as_,
+            )
         return ArtifactEntry(
             _default(self._text(table, "root", where), "cannoli"),
             self._required_text(table, "dest", where),
             self._local_path(table, "path", where),
+            None,
             self._text(table, "as", where),
         )
 

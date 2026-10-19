@@ -136,14 +136,22 @@ def _artifact_destinations(manifest: Manifest) -> Iterator[Destination]:
         base = (PurePosixPath("Cannoli") if root == "cannoli" else PurePosixPath()) / relative_dir(
             entry.dest, where
         )
-        if entry.path.is_file():
-            name = component(entry.as_, where) if entry.as_ else entry.path.name
-            yield Destination(base / name, index, "artifact", entry.path, src=entry.path)
+        if entry.source is not None:
+            name = component(entry.as_ or "", where)
+            yield Destination(base / name, index, "artifact")
+            continue
+        path = entry.path
+        if path is None:
+            error("missing-path", f"{where} has no local path")
+            continue
+        if path.is_file():
+            name = component(entry.as_, where) if entry.as_ else path.name
+            yield Destination(base / name, index, "artifact", path, src=path)
         else:
             if entry.as_ is not None:
                 component(entry.as_, where)
-            for path, rel in entry_files(entry.path):
-                yield Destination(base / rel, index, "artifact", entry.path, src=path)
+            for child, rel in entry_files(path):
+                yield Destination(base / rel, index, "artifact", path, src=child)
 
 
 def iter_destinations(manifest: Manifest) -> Iterator[Destination]:

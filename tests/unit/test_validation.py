@@ -721,3 +721,94 @@ def test_iter_destinations_when_apk_source_yields_apks_destination(tmp_path: Pat
     ]
     assert destinations[0].kind == "apk"
     assert destinations[0].src is None
+
+
+def test_validate_manifest_when_artifact_source_is_referenced_no_unused_warning(
+    tmp_path: Path,
+) -> None:
+    manifest = _manifest(
+        tmp_path,
+        '[[source]]\nid = "pack"\ntype = "github"\n'
+        'repo = "RJNY/Obtainium-Emulation-Pack"\ntag = "v8.0.1"\n'
+        'asset = "obtainium-emulation-pack-v8.0.1.json"\n\n'
+        '[[artifact]]\nroot = "card"\ndest = "Obtainium"\n'
+        'source = "pack"\nas = "obtainium-emulation-pack-v8.0.1.json"\n',
+    )
+
+    assert validate_manifest(manifest) == []
+
+
+def test_validate_manifest_when_artifact_source_is_unknown_raises(tmp_path: Path) -> None:
+    manifest = _manifest(
+        tmp_path,
+        '[[artifact]]\nroot = "card"\ndest = "Obtainium"\nsource = "nope"\nas = "pack.json"\n',
+    )
+
+    error = _assert_error(manifest, "unknown-source")
+
+    assert "nope" in error.message
+    assert "artifact[0]" in error.message
+
+
+def test_validate_manifest_when_artifact_source_as_is_invalid_raises(tmp_path: Path) -> None:
+    manifest = _manifest(
+        tmp_path,
+        '[[source]]\nid = "pack"\ntype = "github"\n'
+        'repo = "RJNY/Obtainium-Emulation-Pack"\ntag = "v8.0.1"\n'
+        'asset = "pack.json"\n\n'
+        '[[artifact]]\nroot = "card"\ndest = "Obtainium"\nsource = "pack"\n'
+        'as = "nested/pack.json"\n',
+    )
+
+    _assert_error(manifest, "invalid-as")
+
+
+def test_validate_manifest_when_artifact_source_dest_is_invalid_raises(tmp_path: Path) -> None:
+    manifest = _manifest(
+        tmp_path,
+        '[[source]]\nid = "pack"\ntype = "github"\n'
+        'repo = "RJNY/Obtainium-Emulation-Pack"\ntag = "v8.0.1"\n'
+        'asset = "pack.json"\n\n'
+        '[[artifact]]\nroot = "card"\ndest = "../escape"\nsource = "pack"\nas = "pack.json"\n',
+    )
+
+    _assert_error(manifest, "invalid-dest")
+
+
+@pytest.mark.parametrize(
+    ("root", "expected"),
+    [
+        ("card", "Obtainium/pack.json"),
+        ("cannoli", "Cannoli/Obtainium/pack.json"),
+    ],
+)
+def test_iter_destinations_when_artifact_source_yields_root_dest_as(
+    tmp_path: Path, root: str, expected: str
+) -> None:
+    manifest = _manifest(
+        tmp_path,
+        f'[[source]]\nid = "pack"\ntype = "github"\n'
+        'repo = "RJNY/Obtainium-Emulation-Pack"\ntag = "v8.0.1"\n'
+        'asset = "pack.json"\n\n'
+        f'[[artifact]]\nroot = "{root}"\ndest = "Obtainium"\nsource = "pack"\n'
+        'as = "pack.json"\n',
+    )
+
+    destinations = list(iter_destinations(manifest))
+
+    assert [destination.dest for destination in destinations] == [PurePosixPath(expected)]
+    assert destinations[0].kind == "artifact"
+    assert destinations[0].src is None
+    assert destinations[0].source_root is None
+
+
+def test_validate_manifest_when_artifact_source_targets_config_warns(tmp_path: Path) -> None:
+    manifest = _manifest(
+        tmp_path,
+        '[[source]]\nid = "pack"\ntype = "github"\n'
+        'repo = "RJNY/Obtainium-Emulation-Pack"\ntag = "v8.0.1"\n'
+        'asset = "pack.json"\n\n'
+        '[[artifact]]\nroot = "cannoli"\ndest = "Config"\nsource = "pack"\nas = "pack.json"\n',
+    )
+
+    assert "artifact-config" in _codes(manifest)

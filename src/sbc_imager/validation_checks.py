@@ -117,15 +117,21 @@ def check_artifacts(manifest: Manifest, warnings: list[Warning]) -> int:
         if root not in {"card", "cannoli"}:
             error("artifact-root", f"{where} root must be 'card' or 'cannoli'")
         relative_dir(entry.dest, where)
-        if entry.as_ is not None:
-            component(entry.as_, where)
-        check_local(where, entry.path)
-        files = entry_files(entry.path)
-        if not files:
-            error("empty-entry", f"{where} produces no files")
         parts = PurePosixPath(entry.dest).parts
         if parts and parts[0].casefold() == "config":
             warnings.append(Warning("artifact-config", f"{where} writes into Config/", index))
+        if entry.source is not None:
+            component(entry.as_ or "", where)
+            continue
+        path = entry.path
+        if path is None:
+            error("missing-path", f"{where} has no local path")
+        if entry.as_ is not None:
+            component(entry.as_, where)
+        check_local(where, path)
+        files = entry_files(path)
+        if not files:
+            error("empty-entry", f"{where} produces no files")
         total += sum(path.stat().st_size for path, _ in files)
     return total
 
@@ -143,6 +149,7 @@ def check_sources(manifest: Manifest) -> tuple[dict[str, int], set[str]]:
         ("overlay", manifest.overlays),
         ("shader", manifest.shaders),
         ("apk", manifest.apks),
+        ("artifact", manifest.artifacts),
     )
     for kind, typed in entries:
         for index, entry in enumerate(typed):
