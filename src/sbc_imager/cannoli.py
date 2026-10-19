@@ -232,8 +232,10 @@ def render_markdown() -> str:
     lines = [
         "# Cannoli platform tags",
         "",
-        f"Pinned Cannoli version: **v{CANNOLI_VERSION}**  ",
-        f"Pinned commit: `{CANNOLI_COMMIT}`  ",
+        f"Pinned Cannoli version: **v{CANNOLI_VERSION}**",
+        "",
+        f"Pinned commit: `{CANNOLI_COMMIT}`",
+        "",
         f"Source: <{CANNOLI_PLATFORMS_URL}>",
         "",
         "This registry contains all "

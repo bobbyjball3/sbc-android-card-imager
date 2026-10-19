@@ -1,7 +1,9 @@
 # Cannoli platform tags
 
-Pinned Cannoli version: **v1.9.1**  
-Pinned commit: `7755e376b6add0bbd25ea19104c368b7a40b979f`  
+Pinned Cannoli version: **v1.9.1**
+
+Pinned commit: `7755e376b6add0bbd25ea19104c368b7a40b979f`
+
 Source: <https://raw.githubusercontent.com/CannoliHQ/cannoli/7755e376b6add0bbd25ea19104c368b7a40b979f/app/src/main/assets/platforms.json>
 
 This registry contains all 51 platform tags shipped by the pinned Cannoli release. ROMs belong in `Cannoli/Roms/<TAG>/`; `APKs/` sits at the card root.
