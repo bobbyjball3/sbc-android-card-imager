@@ -9,22 +9,6 @@ subdir = "pack"
 license = "CC-BY-4.0"
 attribution = "Example Assets"
 
-[[rom]]
-platform = "GBA"
-path = "roms/gba"
-
-[[rom]]
-platform = "N64"
-path = "~/roms/n64"
-
-[[bios]]
-platform = "GBA"
-path = "bios/gba"
-
-[[art]]
-platform = "GBA"
-path = "art/gba"
-
 [[overlay]]
 platform = "GBA"
 path = "overlays/gba"
@@ -43,6 +27,9 @@ source = "assets"
 
 [[apk]]
 path = "apks/retroarch.apk"
+
+[[apk]]
+path = "~/apks/local.apk"
 
 [[artifact]]
 dest = "Cannoli/Guides"

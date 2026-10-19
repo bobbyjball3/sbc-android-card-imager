@@ -7,7 +7,7 @@ import pytest
 from sbc_imager.cannoli import CANNOLI_VERSION
 from sbc_imager.config import Manifest, load_manifest
 from sbc_imager.errors import ConfigError
-from sbc_imager.planner import BuildPlan, build_plan
+from sbc_imager.planner import build_plan
 from sbc_imager.sources import ResolvedSource
 
 MIB = 1024 * 1024
@@ -52,18 +52,6 @@ ref = "v1.0.0"
 license = "CC-BY-4.0"
 attribution = "Example Assets"
 
-[[rom]]
-platform = "GBA"
-path = "roms"
-
-[[bios]]
-platform = "GBA"
-path = "bios/gba_bios.bin"
-
-[[art]]
-platform = "GBA"
-path = "art"
-
 [[overlay]]
 platform = "GBA"
 path = "overlays/bezel.png"
@@ -89,13 +77,9 @@ dest = "Guides"
 path = "guides"
 """
 
-MIXED_CONTENT = 11
+MIXED_CONTENT = 7
 
 MIXED_FILES = (
-    "roms/demo.gba",
-    "roms/sub/deep.gba",
-    "bios/gba_bios.bin",
-    "art/demo.png",
     "overlays/bezel.png",
     "shaders/crt/crt.glslp",
     "shaders/crt/pass.glsl",
@@ -116,10 +100,6 @@ def test_build_plan_when_mixed_manifest_maps_every_destination(tmp_path: Path) -
     plan = build_plan(manifest, _resolved(_assets(tmp_path)))
 
     assert [entry.dest for entry in plan.entries] == [
-        PurePosixPath("Cannoli/Roms/GBA/demo.gba"),
-        PurePosixPath("Cannoli/Roms/GBA/sub/deep.gba"),
-        PurePosixPath("Cannoli/BIOS/GBA/gba_bios.bin"),
-        PurePosixPath("Cannoli/Art/GBA/demo.png"),
         PurePosixPath("Cannoli/Overlays/GBA/bezel.png"),
         PurePosixPath("Cannoli/Overlays/SNES/overlay.png"),
         PurePosixPath("Cannoli/Shaders/crt/crt.glslp"),
@@ -129,10 +109,6 @@ def test_build_plan_when_mixed_manifest_maps_every_destination(tmp_path: Path) -
         PurePosixPath("Guides/setup.md"),
     ]
     assert [entry.kind for entry in plan.entries] == [
-        "rom",
-        "rom",
-        "bios",
-        "art",
         "overlay",
         "overlay",
         "shader",
@@ -143,9 +119,10 @@ def test_build_plan_when_mixed_manifest_maps_every_destination(tmp_path: Path) -
     ]
     assert plan.entries[0].entry_index == 0
     assert plan.entries[0].size == 1
-    assert plan.entries[4].source_id is None
-    assert plan.entries[5].source_id == "assets"
-    assert plan.entries[8].source_id == "assets"
+    assert plan.entries[1].source_id == "assets"
+    assert plan.entries[4].source_id == "assets"
+    assert plan.entries[5].source_id is None
+    assert plan.entries[6].source_id is None
     assert all(entry.src.is_file() for entry in plan.entries)
     assert plan.content_bytes == sum(entry.size for entry in plan.entries)
 
@@ -374,26 +351,13 @@ def test_build_plan_when_credits_include_cannoli_and_redacted_sources(tmp_path: 
 def test_build_plan_when_local_file_sizes_are_summed(tmp_path: Path) -> None:
     manifest = _manifest(
         tmp_path,
-        '[[rom]]\nplatform = "GBA"\npath = "roms"\n',
+        '[[artifact]]\nroot = "card"\ndest = "Guides"\npath = "guides"\n',
         (),
     )
-    _touch(tmp_path / "roms" / "a.gba", b"abc")
-    _touch(tmp_path / "roms" / "b.gba", b"defgh")
+    _touch(tmp_path / "guides" / "a.md", b"abc")
+    _touch(tmp_path / "guides" / "b.md", b"defgh")
 
     plan = build_plan(manifest, {})
 
     assert plan.content_bytes == 8
     assert [entry.size for entry in plan.entries] == [3, 5]
-
-
-def test_build_plan_returns_validation_warnings(tmp_path: Path) -> None:
-    manifest = _manifest(
-        tmp_path,
-        '[[rom]]\nplatform = "SATURN"\npath = "roms"\n',
-        ("roms/demo.cue",),
-    )
-
-    plan = build_plan(manifest, {})
-
-    assert [warning.code for warning in plan.warnings] == ["missing-required-bios"]
-    assert isinstance(plan, BuildPlan)

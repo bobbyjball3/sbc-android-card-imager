@@ -39,7 +39,7 @@ def _manifest(tmp_path: Path, body: str, files: dict[str, bytes]) -> Manifest:
 def _plan(tmp_path: Path) -> BuildPlan:
     manifest = _manifest(
         tmp_path,
-        '[[rom]]\nplatform = "GBA"\npath = "roms"\n\n'
+        '[[artifact]]\nroot = "cannoli"\ndest = "Roms/GBA"\npath = "roms"\n\n'
         '[[artifact]]\nroot = "card"\ndest = "Guides"\npath = "guides"\n',
         {
             "roms/demo.gba": b"ROMDATA",
@@ -95,7 +95,7 @@ def test_stage_when_nested_destination_creates_parent_directories(tmp_path: Path
 def test_stage_when_duplicate_destinations_are_detected_again(tmp_path: Path) -> None:
     source = _touch(tmp_path / "a.bin", b"a")
     dest = PurePosixPath("Cannoli/Roms/GBA/demo.gba")
-    entry = PlannedEntry(dest, source, "rom", 1, 0, None)
+    entry = PlannedEntry(dest, source, "artifact", 1, 0, None)
     plan = _manual_plan((entry, entry))
 
     with pytest.raises(ConfigError, match="duplicate-destination"):
@@ -104,8 +104,10 @@ def test_stage_when_duplicate_destinations_are_detected_again(tmp_path: Path) ->
 
 def test_stage_when_case_collisions_are_detected_again(tmp_path: Path) -> None:
     source = _touch(tmp_path / "a.bin", b"a")
-    first = PlannedEntry(PurePosixPath("Cannoli/Roms/GBA/Demo.gba"), source, "rom", 1, 0, None)
-    second = PlannedEntry(PurePosixPath("Cannoli/Roms/GBA/demo.gba"), source, "rom", 1, 1, None)
+    first = PlannedEntry(PurePosixPath("Cannoli/Roms/GBA/Demo.gba"), source, "artifact", 1, 0, None)
+    second = PlannedEntry(
+        PurePosixPath("Cannoli/Roms/GBA/demo.gba"), source, "artifact", 1, 1, None
+    )
     plan = _manual_plan((first, second))
 
     with pytest.raises(ConfigError, match="destination-collision"):

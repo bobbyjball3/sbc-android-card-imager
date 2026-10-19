@@ -10,19 +10,9 @@ from pathlib import Path, PurePosixPath
 
 from sbc_imager.validation_common import error
 
-IMAGE_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"})
-_ROM_JUNK_NAMES = frozenset({"thumbs.db", "desktop.ini"})
-
 
 def is_hidden(name: str) -> bool:
     return name.startswith(".")
-
-
-def is_rom_junk(name: str, tag: str) -> bool:
-    suffix = PurePosixPath(name).suffix.casefold()
-    if name.casefold() in _ROM_JUNK_NAMES:
-        return True
-    return suffix == ".md" or suffix in IMAGE_SUFFIXES or (suffix == ".txt" and tag != "PC")
 
 
 def _matches(rel: PurePosixPath, pattern: str) -> bool:

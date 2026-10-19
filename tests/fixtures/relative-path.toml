@@ -2,8 +2,9 @@
 name = "relative"
 output = "out/card.img"
 
-[[rom]]
+[[overlay]]
 platform = "N64"
-path = "roms/n64"
-include = ["**/*.z64", "**/*.n64"]
-exclude = ["*.tmp"]
+path = "overlays/n64"
+
+[[apk]]
+path = "apps/app.apk"

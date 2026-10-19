@@ -4,12 +4,11 @@ from __future__ import annotations
 
 from pathlib import PurePosixPath
 
-from sbc_imager.cannoli import PC_SHORTCUT_EXTENSIONS
 from sbc_imager.config import Manifest, OverlayEntry, ShaderEntry
-from sbc_imager.validation_common import Warning, error, tag
+from sbc_imager.validation_common import Warning, error
 from sbc_imager.validation_destinations import component, relative_dir, source_relative_path
-from sbc_imager.validation_exfat import check_component, nfc
-from sbc_imager.validation_local import IMAGE_SUFFIXES, check_local, entry_files, is_rom_junk
+from sbc_imager.validation_exfat import check_component
+from sbc_imager.validation_local import check_local, entry_files
 
 
 def check_overlay(entry: OverlayEntry, index: int, warnings: list[Warning]) -> int:
@@ -77,79 +76,6 @@ def check_shader(entry: ShaderEntry, index: int) -> int:
     if not files:
         error("empty-entry", f"{where} produces no files")
     return sum(path.stat().st_size for path, _ in files)
-
-
-def check_roms(manifest: Manifest, warnings: list[Warning]) -> tuple[int, set[str]]:
-    total = 0
-    stems: set[str] = set()
-    for index, entry in enumerate(manifest.roms):
-        platform = tag(entry.platform, f"rom[{index}]")
-        check_local(f"rom[{index}]", entry.path)
-        files = entry_files(entry.path, entry.include, entry.exclude)
-        usable = []
-        for path, rel in files:
-            if is_rom_junk(rel.name, platform):
-                warnings.append(
-                    Warning(
-                        "junk-rom-file", f"rom[{index}] ignores junk file {rel.as_posix()}", index
-                    )
-                )
-                continue
-            usable.append((path, rel))
-            if platform == "PC" and rel.suffix.casefold() not in PC_SHORTCUT_EXTENSIONS:
-                error(
-                    "pc-extension",
-                    f"rom[{index}] PC file {rel.as_posix()} is not a supported shortcut file",
-                )
-            stems.add(nfc(rel.stem).casefold())
-            total += path.stat().st_size
-        if not usable:
-            error("empty-entry", f"rom[{index}] produces no files")
-    return total, stems
-
-
-def check_bios(manifest: Manifest) -> tuple[int, dict[str, set[str]], dict[str, int]]:
-    total = 0
-    relative: dict[str, set[str]] = {}
-    indexes: dict[str, int] = {}
-    for index, entry in enumerate(manifest.bios):
-        platform = tag(entry.platform, f"bios[{index}]")
-        where = f"bios[{index}]"
-        check_local(where, entry.path)
-        files = entry_files(entry.path)
-        if not files:
-            error("empty-entry", f"{where} produces no files")
-        as_name = component(entry.as_, where) if entry.as_ is not None else None
-        for path, rel in files:
-            if entry.path.is_file() and as_name is not None:
-                rel = PurePosixPath(as_name)
-            relative.setdefault(platform, set()).add(rel.as_posix().casefold())
-            total += path.stat().st_size
-        indexes.setdefault(platform, index)
-    return total, relative, indexes
-
-
-def check_art(manifest: Manifest, warnings: list[Warning], rom_stems: set[str]) -> int:
-    total = 0
-    for index, entry in enumerate(manifest.art):
-        tag(entry.platform, f"art[{index}]")
-        check_local(f"art[{index}]", entry.path)
-        files = entry_files(entry.path, entry.include, entry.exclude)
-        for path, rel in files:
-            if rel.suffix.casefold() not in IMAGE_SUFFIXES:
-                error("art-extension", f"art[{index}] file {rel.as_posix()} is not an image")
-            if nfc(rel.stem).casefold() not in rom_stems:
-                warnings.append(
-                    Warning(
-                        "art-no-rom",
-                        f"art[{index}] {rel.as_posix()} has no matching ROM basename",
-                        index,
-                    )
-                )
-            total += path.stat().st_size
-        if not files:
-            error("empty-entry", f"art[{index}] produces no files")
-    return total
 
 
 def check_apks(manifest: Manifest) -> int:

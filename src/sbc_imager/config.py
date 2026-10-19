@@ -17,13 +17,16 @@ _KEYS: Final[dict[str, frozenset[str]]] = {
     "source": frozenset(
         {"id", "type", "url", "ref", "subdir", "filename", "sha256", "license", "attribution"}
     ),
-    "rom": frozenset({"platform", "path", "include", "exclude"}),
-    "bios": frozenset({"platform", "path", "as"}),
-    "art": frozenset({"platform", "path", "include", "exclude"}),
     "overlay": frozenset({"platform", "path", "source", "as"}),
     "shader": frozenset({"path", "source", "as"}),
     "apk": frozenset({"path", "as"}),
     "artifact": frozenset({"root", "dest", "path", "as"}),
+}
+
+_RETIRED_TABLES: Final[dict[str, str]] = {
+    "rom": "`[[rom]]` is no longer supported; Cannoli/RomM supplies ROM content.",
+    "bios": "`[[bios]]` is no longer supported; Cannoli/RomM supplies BIOS content.",
+    "art": "`[[art]]` is no longer supported; Cannoli/RomM supplies box art.",
 }
 
 
@@ -55,29 +58,6 @@ class SourceConfig:
     sha256: str | None
     license: str | None
     attribution: str | None
-
-
-@dataclass(frozen=True, slots=True)
-class RomEntry:
-    platform: str
-    path: Path
-    include: tuple[str, ...]
-    exclude: tuple[str, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class BiosEntry:
-    platform: str
-    path: Path
-    as_: str | None
-
-
-@dataclass(frozen=True, slots=True)
-class ArtEntry:
-    platform: str
-    path: Path
-    include: tuple[str, ...]
-    exclude: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,9 +93,6 @@ class ArtifactEntry:
 class Manifest:
     image: ImageConfig
     sources: tuple[SourceConfig, ...]
-    roms: tuple[RomEntry, ...]
-    bios: tuple[BiosEntry, ...]
-    art: tuple[ArtEntry, ...]
     overlays: tuple[OverlayEntry, ...]
     shaders: tuple[ShaderEntry, ...]
     apks: tuple[ApkEntry, ...]
@@ -130,21 +107,19 @@ class _ManifestParser:
 
     def parse(self) -> Manifest:
         data = self._read_toml()
+        for table, message in _RETIRED_TABLES.items():
+            if table in data:
+                _fail(f"{message} Remove `[[{table}]]` from manifest {self.path}.")
         if unknown := sorted(set(data) - _KEYS.keys()):
             _fail(f"unknown key '{unknown[0]}' in manifest {self.path}")
         image = self._image(self._table(data.get("image", {}), "image", _KEYS["image"]))
         sources = self._sources(self._tables(data, "source"))
-        roms = tuple(self._rom(t, i) for i, t in enumerate(self._tables(data, "rom")))
-        bios = tuple(self._bios(t, i) for i, t in enumerate(self._tables(data, "bios")))
-        art = tuple(self._art(t, i) for i, t in enumerate(self._tables(data, "art")))
         overlays = tuple(self._overlay(t, i) for i, t in enumerate(self._tables(data, "overlay")))
         shaders = tuple(self._shader(t, i) for i, t in enumerate(self._tables(data, "shader")))
         apks = tuple(self._apk(t, i) for i, t in enumerate(self._tables(data, "apk")))
         artifact_tables = self._tables(data, "artifact")
         artifacts = tuple(self._artifact(t, i) for i, t in enumerate(artifact_tables))
-        return Manifest(
-            image, sources, roms, bios, art, overlays, shaders, apks, artifacts, self.base_dir
-        )
+        return Manifest(image, sources, overlays, shaders, apks, artifacts, self.base_dir)
 
     def _read_toml(self) -> dict[str, object]:
         try:
@@ -180,14 +155,6 @@ class _ManifestParser:
         if value is None:
             _fail(f"{where} is missing required key '{key}' in manifest {self.path}")
         return value
-
-    def _str_list(self, table: _Table, key: str, where: str) -> tuple[str, ...] | None:
-        value = table.get(key)
-        if value is None:
-            return None
-        if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
-            _fail(f"{where}.{key} must be an array of strings in manifest {self.path}")
-        return tuple(map(str, value))
 
     def _local_path(self, table: _Table, key: str, where: str) -> Path:
         path = Path(self._required_text(table, key, where)).expanduser()
@@ -237,32 +204,6 @@ class _ManifestParser:
             self._text(table, "license", where),
             self._text(table, "attribution", where),
         )
-
-    def _glob_values(
-        self, table: _Table, where: str
-    ) -> tuple[str, Path, tuple[str, ...], tuple[str, ...]]:
-        include = self._str_list(table, "include", where)
-        exclude = self._str_list(table, "exclude", where)
-        return (
-            self._required_text(table, "platform", where),
-            self._local_path(table, "path", where),
-            ("**/*",) if include is None else include,
-            () if exclude is None else exclude,
-        )
-
-    def _rom(self, table: _Table, index: int) -> RomEntry:
-        return RomEntry(*self._glob_values(table, f"rom[{index}]"))
-
-    def _bios(self, table: _Table, index: int) -> BiosEntry:
-        where = f"bios[{index}]"
-        return BiosEntry(
-            self._required_text(table, "platform", where),
-            self._local_path(table, "path", where),
-            self._text(table, "as", where),
-        )
-
-    def _art(self, table: _Table, index: int) -> ArtEntry:
-        return ArtEntry(*self._glob_values(table, f"art[{index}]"))
 
     def _overlay(self, table: _Table, index: int) -> OverlayEntry:
         where = f"overlay[{index}]"

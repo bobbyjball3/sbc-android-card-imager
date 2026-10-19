@@ -40,20 +40,6 @@ def test_load_manifest_when_minimal_parses_every_section() -> None:
     assert source.license == "CC-BY-4.0"
     assert source.attribution == "Example Assets"
 
-    assert [rom.platform for rom in manifest.roms] == ["GBA", "N64"]
-    assert manifest.roms[0].path == FIXTURES / "roms" / "gba"
-    assert manifest.roms[0].include == ("**/*",)
-    assert manifest.roms[0].exclude == ()
-
-    assert [bios.platform for bios in manifest.bios] == ["GBA"]
-    assert manifest.bios[0].path == FIXTURES / "bios" / "gba"
-    assert manifest.bios[0].as_ is None
-
-    assert [art.platform for art in manifest.art] == ["GBA"]
-    assert manifest.art[0].path == FIXTURES / "art" / "gba"
-    assert manifest.art[0].include == ("**/*",)
-    assert manifest.art[0].exclude == ()
-
     assert [overlay.platform for overlay in manifest.overlays] == ["GBA", "SNES"]
     assert manifest.overlays[0].path == FIXTURES / "overlays" / "gba"
     assert manifest.overlays[1].path == Path("overlays/snes")
@@ -66,7 +52,10 @@ def test_load_manifest_when_minimal_parses_every_section() -> None:
     ]
     assert manifest.shaders[1].source == "assets"
 
-    assert [apk.path for apk in manifest.apks] == [FIXTURES / "apks" / "retroarch.apk"]
+    assert [apk.path for apk in manifest.apks] == [
+        FIXTURES / "apks" / "retroarch.apk",
+        (Path.home() / "apks" / "local.apk").resolve(),
+    ]
     assert manifest.apks[0].as_ is None
 
     assert [artifact.dest for artifact in manifest.artifacts] == ["Cannoli/Guides"]
@@ -81,9 +70,8 @@ def test_load_manifest_when_relative_paths_resolves_against_fixture_dir() -> Non
     assert manifest.base_dir == FIXTURES
     assert manifest.image.name == "relative"
     assert manifest.image.output == FIXTURES / "out" / "card.img"
-    assert manifest.roms[0].path == FIXTURES / "roms" / "n64"
-    assert manifest.roms[0].include == ("**/*.z64", "**/*.n64")
-    assert manifest.roms[0].exclude == ("*.tmp",)
+    assert manifest.overlays[0].path == FIXTURES / "overlays" / "n64"
+    assert manifest.apks[0].path == FIXTURES / "apps" / "app.apk"
 
 
 def test_load_manifest_when_unknown_section_key_raises_with_key_and_path() -> None:
@@ -107,31 +95,29 @@ def test_load_manifest_when_required_field_missing_includes_entry_index() -> Non
     with pytest.raises(ConfigError) as caught:
         _load("missing-required.toml")
 
-    assert "rom[0]" in caught.value.message
+    assert "overlay[0]" in caught.value.message
     assert "platform" in caught.value.message
     assert str(FIXTURES / "missing-required.toml") in caught.value.message
 
 
-def test_load_manifest_when_include_is_not_a_list_of_strings_raises(
-    tmp_path: Path,
-) -> None:
+def test_load_manifest_when_as_is_not_a_string_raises(tmp_path: Path) -> None:
     manifest_path = tmp_path / "wrong-type.toml"
     manifest_path.write_text(
-        '[image]\n\n[[rom]]\nplatform = "GBA"\npath = "roms"\ninclude = "*.gba"\n',
+        '[image]\n\n[[apk]]\npath = "app.apk"\nas = 7\n',
         encoding="utf-8",
     )
 
     with pytest.raises(ConfigError) as caught:
         load_manifest(manifest_path)
 
-    assert "rom[0].include" in caught.value.message
+    assert "apk[0].as" in caught.value.message
     assert str(manifest_path) in caught.value.message
 
 
 def test_load_manifest_when_local_path_uses_tilde_expands_home() -> None:
     manifest = _load("minimal.toml")
 
-    tilde_path = manifest.roms[1].path
+    tilde_path = manifest.apks[1].path
 
     assert str(tilde_path).startswith(str(Path.home()))
     assert "~" not in str(tilde_path)
@@ -142,43 +128,62 @@ def test_load_manifest_when_typed_root_is_symlink_raises(tmp_path: Path, target_
     target = tmp_path / "real"
     if target_kind == "directory":
         target.mkdir()
-        (target / "demo.gba").write_bytes(b"rom")
+        (target / "demo.apk").write_bytes(b"apk")
     else:
-        target.write_bytes(b"rom")
+        target.write_bytes(b"apk")
     link = tmp_path / "link"
     link.symlink_to(target, target_is_directory=target_kind == "directory")
     manifest_path = tmp_path / "symlink.toml"
-    manifest_path.write_text(f'[[rom]]\nplatform = "GBA"\npath = "{link.name}"\n', encoding="utf-8")
+    manifest_path.write_text(f'[[apk]]\npath = "{link.name}"\n', encoding="utf-8")
 
     with pytest.raises(ConfigError) as caught:
         load_manifest(manifest_path)
 
-    assert "symlink: rom[0]" in caught.value.message
+    assert "symlink: apk[0]" in caught.value.message
 
 
 def test_load_manifest_when_typed_path_parent_is_symlink_allows(
     tmp_path: Path,
 ) -> None:
     real = tmp_path / "real"
-    (real / "roms").mkdir(parents=True)
-    (real / "roms" / "demo.gba").write_bytes(b"rom")
+    (real / "apps").mkdir(parents=True)
+    (real / "apps" / "demo.apk").write_bytes(b"apk")
     link = tmp_path / "link"
     link.symlink_to(real, target_is_directory=True)
     manifest_path = tmp_path / "parent-symlink.toml"
-    manifest_path.write_text(
-        '[[rom]]\nplatform = "GBA"\npath = "link/roms/demo.gba"\n', encoding="utf-8"
-    )
+    manifest_path.write_text('[[apk]]\npath = "link/apps/demo.apk"\n', encoding="utf-8")
 
     manifest = load_manifest(manifest_path)
 
-    assert manifest.roms[0].path == (real / "roms" / "demo.gba").resolve()
-    assert not manifest.roms[0].path.is_symlink()
+    assert manifest.apks[0].path == (real / "apps" / "demo.apk").resolve()
+    assert not manifest.apks[0].path.is_symlink()
 
 
 def test_load_manifest_when_targets_do_not_exist_still_loads() -> None:
-    missing_rom = FIXTURES / "roms" / "gba"
-    assert not missing_rom.exists()
+    missing_guides = FIXTURES / "guides"
+    assert not missing_guides.exists()
 
     manifest = _load("minimal.toml")
 
-    assert manifest.roms[0].path == missing_rom
+    assert manifest.artifacts[0].path == missing_guides
+
+
+@pytest.mark.parametrize(
+    ("table", "message"),
+    [
+        ("rom", "`[[rom]]` is no longer supported; Cannoli/RomM supplies ROM content."),
+        ("bios", "`[[bios]]` is no longer supported; Cannoli/RomM supplies BIOS content."),
+        ("art", "`[[art]]` is no longer supported; Cannoli/RomM supplies box art."),
+    ],
+)
+def test_load_manifest_when_retired_table_is_present_raises(
+    tmp_path: Path, table: str, message: str
+) -> None:
+    manifest_path = tmp_path / "retired.toml"
+    manifest_path.write_text(f'[[{table}]]\npath = "files"\n', encoding="utf-8")
+
+    with pytest.raises(ConfigError) as caught:
+        load_manifest(manifest_path)
+
+    assert message in caught.value.message
+    assert str(manifest_path) in caught.value.message

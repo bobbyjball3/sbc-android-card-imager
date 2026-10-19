@@ -38,13 +38,16 @@ MANIFEST = ROOT / "examples" / "imager.toml"
 
 REQUIRED_FILES = (
     "APKs/Demo.apk",
-    "Cannoli/Roms/GBA/demo.gba",
-    "Cannoli/BIOS/GBA/gba_bios.bin",
-    "Cannoli/Art/GBA/demo.png",
     "Cannoli/Overlays/GBA/bezel.png",
     "Cannoli/Shaders/crt-lamp/crt-lamp.glslp",
     "Cannoli/Shaders/crt-lamp/crt-lamp.glsl",
     "Manuals/readme.txt",
+)
+
+REMOVED_FILES = (
+    "Cannoli/Roms/GBA/demo.gba",
+    "Cannoli/BIOS/GBA/gba_bios.bin",
+    "Cannoli/Art/GBA/demo.png",
 )
 
 
@@ -89,6 +92,8 @@ def _assert_tree(root: Path) -> None:
     assert "GPL-3.0" in credits
     for relative in REQUIRED_FILES:
         assert (root / relative).is_file(), relative
+    for relative in REMOVED_FILES:
+        assert not (root / relative).exists(), relative
 
 
 def _assert_hashes(root: Path, staged: StageResult) -> None:
@@ -110,8 +115,10 @@ def test_build_e2e_when_example_is_valid_produces_verified_card(tmp_path: Path) 
 
     assert plan.image_bytes == 66 * MIB
     assert image.stat().st_size == plan.image_bytes
-    assert report.content_files == len(plan.entries)
-    assert report.content_bytes == plan.content_bytes
+    assert len(plan.entries) == 5
+    assert plan.content_bytes == 592
+    assert report.content_files == 5
+    assert report.content_bytes == 592
     _assert_assembler_outputs(image, work, report)
 
     expected = build_expected(manifest, {})
@@ -121,6 +128,8 @@ def test_build_e2e_when_example_is_valid_produces_verified_card(tmp_path: Path) 
     actual = load_actual_tree(tree_path, dirs_path_for(tree_path))
     comparison = compare(expected, actual)
     assert comparison.ok is True, comparison.payload()
+    assert comparison.expected_files == 7
+    assert comparison.actual_files == 7
     for entry in staged.entries:
         assert actual.files[entry.dest.as_posix()] == entry.sha256
 

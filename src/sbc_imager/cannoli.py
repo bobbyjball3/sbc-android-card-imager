@@ -84,19 +84,6 @@ PLATFORM_TAGS: Final[dict[str, str]] = {
     "NSW": "Nintendo Switch",
 }
 
-PC_SHORTCUT_EXTENSIONS: Final[frozenset[str]] = frozenset(
-    {
-        ".steam",
-        ".steamappid",
-        ".epic",
-        ".gog",
-        ".amazon",
-        ".pcgame",
-        ".localgameid",
-        ".txt",
-    }
-)
-
 HARD_REQUIRED_BIOS: Final[dict[str, tuple[str, ...]]] = {
     "SATURN": ("sega_101.bin", "mpr-17933.bin"),
     "PCFX": ("pcfx.rom",),
@@ -140,16 +127,6 @@ def cannoli_root() -> PurePosixPath:
 def rom_dir(tag: str) -> PurePosixPath:
     """Return ``Cannoli/Roms/<TAG>`` for a platform tag."""
     return _CANNOLI_ROOT / "Roms" / validate_tag(tag)
-
-
-def bios_dir(tag: str) -> PurePosixPath:
-    """Return ``Cannoli/BIOS/<TAG>`` for a platform tag."""
-    return _CANNOLI_ROOT / "BIOS" / validate_tag(tag)
-
-
-def art_dir(tag: str) -> PurePosixPath:
-    """Return ``Cannoli/Art/<TAG>`` for a platform tag."""
-    return _CANNOLI_ROOT / "Art" / validate_tag(tag)
 
 
 def overlays_dir(tag: str) -> PurePosixPath:

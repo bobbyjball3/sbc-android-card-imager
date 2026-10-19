@@ -11,11 +11,8 @@ from sbc_imager.cannoli import (
     CANNOLI_PLATFORMS_URL,
     CANNOLI_VERSION,
     HARD_REQUIRED_BIOS,
-    PC_SHORTCUT_EXTENSIONS,
     PLATFORM_TAGS,
     apks_dir,
-    art_dir,
-    bios_dir,
     cannoli_root,
     cheats_dir,
     credits_path,
@@ -145,8 +142,6 @@ def test_path_builder_when_called_returns_pure_posix_path(
     ("builder", "tag", "expected"),
     [
         (rom_dir, "gba", "Cannoli/Roms/GBA"),
-        (bios_dir, "GBA", "Cannoli/BIOS/GBA"),
-        (art_dir, "saturn", "Cannoli/Art/SATURN"),
         (overlays_dir, "AMIGA", "Cannoli/Overlays/AMIGA"),
         (saves_dir, "PC", "Cannoli/Saves/PC"),
         (save_states_dir, "pc", "Cannoli/Save States/PC"),
@@ -187,19 +182,6 @@ def test_validate_tag_when_unknown_raises_config_error_not_key_error() -> None:
 
 def test_validate_tag_when_lowercase_returns_canonical_uppercase() -> None:
     assert validate_tag("gba") == "GBA"
-
-
-def test_pc_shortcut_extensions_when_loaded_match_cannoli_contract() -> None:
-    assert {
-        ".steam",
-        ".steamappid",
-        ".epic",
-        ".gog",
-        ".amazon",
-        ".pcgame",
-        ".localgameid",
-        ".txt",
-    } == PC_SHORTCUT_EXTENSIONS
 
 
 def test_hard_required_bios_when_loaded_matches_cannoli_contract() -> None:

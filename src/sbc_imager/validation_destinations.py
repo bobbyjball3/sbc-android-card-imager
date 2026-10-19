@@ -6,17 +6,10 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
-from sbc_imager.cannoli import (
-    apks_dir,
-    art_dir,
-    bios_dir,
-    overlays_dir,
-    rom_dir,
-    shaders_dir,
-)
+from sbc_imager.cannoli import apks_dir, overlays_dir, shaders_dir
 from sbc_imager.config import Manifest
 from sbc_imager.validation_common import error, tag
-from sbc_imager.validation_local import entry_files, is_rom_junk
+from sbc_imager.validation_local import entry_files
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,34 +54,6 @@ def source_relative_path(path: Path, where: str) -> PurePosixPath:
     ):
         error("source-path", f"{where} source-relative path must stay inside the source")
     return relative
-
-
-def _rom_destinations(manifest: Manifest) -> Iterator[Destination]:
-    for index, entry in enumerate(manifest.roms):
-        platform = tag(entry.platform, f"rom[{index}]")
-        for path, rel in entry_files(entry.path, entry.include, entry.exclude):
-            if not is_rom_junk(rel.name, platform):
-                yield Destination(rom_dir(platform) / rel, index, "rom", entry.path, src=path)
-
-
-def _bios_destinations(manifest: Manifest) -> Iterator[Destination]:
-    for index, entry in enumerate(manifest.bios):
-        platform = tag(entry.platform, f"bios[{index}]")
-        if entry.path.is_file():
-            name = component(entry.as_, f"bios[{index}]") if entry.as_ else entry.path.name
-            yield Destination(bios_dir(platform) / name, index, "bios", entry.path, src=entry.path)
-        else:
-            if entry.as_ is not None:
-                component(entry.as_, f"bios[{index}]")
-            for path, rel in entry_files(entry.path):
-                yield Destination(bios_dir(platform) / rel, index, "bios", entry.path, src=path)
-
-
-def _art_destinations(manifest: Manifest) -> Iterator[Destination]:
-    for index, entry in enumerate(manifest.art):
-        platform = tag(entry.platform, f"art[{index}]")
-        for path, rel in entry_files(entry.path, entry.include, entry.exclude):
-            yield Destination(art_dir(platform) / rel, index, "art", entry.path, src=path)
 
 
 def _overlay_destinations(manifest: Manifest) -> Iterator[Destination]:
@@ -175,9 +140,6 @@ def _artifact_destinations(manifest: Manifest) -> Iterator[Destination]:
 
 def iter_destinations(manifest: Manifest) -> Iterator[Destination]:
     """Yield every card-relative file destination produced by a manifest."""
-    yield from _rom_destinations(manifest)
-    yield from _bios_destinations(manifest)
-    yield from _art_destinations(manifest)
     yield from _overlay_destinations(manifest)
     yield from _shader_destinations(manifest)
     yield from _apk_destinations(manifest)

@@ -31,14 +31,6 @@ LOCAL = """
 [image]
 label = "CANNOLI"
 
-[[rom]]
-platform = "GBA"
-path = "roms"
-
-[[bios]]
-platform = "GBA"
-path = "bios.bin"
-
 [[overlay]]
 platform = "GBA"
 path = "overlays/bezel.png"
@@ -56,8 +48,6 @@ path = "guides"
 """
 
 LOCAL_FILES = (
-    "roms/demo.gba",
-    "bios.bin",
     "overlays/bezel.png",
     "shaders/crt/crt.glslp",
     "shaders/crt/pass.glsl",
@@ -85,8 +75,6 @@ def test_plan_when_json_requested_prints_only_json(tmp_path: Path) -> None:
     assert payload["sizes"]["partition_offset_bytes"] == 1024 * 1024
     assert payload["sizes"]["image_bytes"] > payload["sizes"]["partition_bytes"]
     assert [entry["dest"] for entry in payload["entries"]] == [
-        "Cannoli/Roms/GBA/demo.gba",
-        "Cannoli/BIOS/GBA/bios.bin",
         "Cannoli/Overlays/GBA/bezel.png",
         "Cannoli/Shaders/crt/crt.glslp",
         "Cannoli/Shaders/crt/pass.glsl",
@@ -103,8 +91,8 @@ def test_plan_when_table_requested_prints_dest_kind_and_totals(tmp_path: Path) -
     result = runner.invoke(app, ["plan", "--manifest", str(manifest)])
 
     assert result.exit_code == 0, result.stderr
-    assert "Cannoli/Roms/GBA/demo.gba" in result.stdout
-    assert "rom" in result.stdout
+    assert "Cannoli/Overlays/GBA/bezel.png" in result.stdout
+    assert "overlay" in result.stdout
     assert "content" in result.stdout.lower()
     assert "image" in result.stdout.lower()
 
@@ -112,15 +100,15 @@ def test_plan_when_table_requested_prints_dest_kind_and_totals(tmp_path: Path) -
 def test_plan_when_strict_and_warning_exists_exits_two(tmp_path: Path) -> None:
     manifest = _manifest(
         tmp_path,
-        '[[rom]]\nplatform = "SATURN"\npath = "roms"\n',
-        ("roms/demo.cue",),
+        '[[overlay]]\nplatform = "GBA"\npath = "overlays"\n',
+        ("overlays/demo.png", "overlays/notes.txt"),
     )
 
     result = runner.invoke(app, ["plan", "--manifest", str(manifest), "--strict"])
 
     assert result.exit_code == 2
     assert "strict" in result.stderr.lower()
-    assert "missing-required-bios" in result.stderr
+    assert "overlay-non-png" in result.stderr
 
 
 @pytest.mark.parametrize("target_kind", ["file", "directory"])
@@ -128,17 +116,36 @@ def test_plan_when_typed_root_is_symlink_exits_two(tmp_path: Path, target_kind: 
     target = tmp_path / "real"
     if target_kind == "directory":
         target.mkdir()
-        (target / "demo.gba").write_bytes(b"rom")
+        (target / "demo.apk").write_bytes(b"apk")
     else:
-        target.write_bytes(b"rom")
+        target.write_bytes(b"apk")
     link = tmp_path / "link"
     link.symlink_to(target, target_is_directory=target_kind == "directory")
-    manifest = _manifest(tmp_path, f'[[rom]]\nplatform = "GBA"\npath = "{link.name}"\n')
+    manifest = _manifest(tmp_path, f'[[apk]]\npath = "{link.name}"\n')
 
     result = runner.invoke(app, ["plan", "--manifest", str(manifest)])
 
     assert result.exit_code == 2
-    assert "symlink: rom[0]" in result.stderr
+    assert "symlink: apk[0]" in result.stderr
+
+
+@pytest.mark.parametrize(
+    ("table", "message"),
+    [
+        ("rom", "`[[rom]]` is no longer supported; Cannoli/RomM supplies ROM content."),
+        ("bios", "`[[bios]]` is no longer supported; Cannoli/RomM supplies BIOS content."),
+        ("art", "`[[art]]` is no longer supported; Cannoli/RomM supplies box art."),
+    ],
+)
+def test_plan_when_retired_table_is_present_exits_two(
+    tmp_path: Path, table: str, message: str
+) -> None:
+    manifest = _manifest(tmp_path, f'[[{table}]]\npath = "files"\n')
+
+    result = runner.invoke(app, ["plan", "--manifest", str(manifest)])
+
+    assert result.exit_code == 2
+    assert message in result.stderr
 
 
 def test_plan_when_invoked_writes_no_stage_or_image(tmp_path: Path) -> None:

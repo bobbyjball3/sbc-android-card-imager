@@ -33,13 +33,10 @@ MANIFEST = """
 name = "verify"
 reserve = "1MiB"
 
-[[rom]]
-platform = "GBA"
+[[artifact]]
+root = "cannoli"
+dest = "Roms/GBA"
 path = "roms"
-
-[[bios]]
-platform = "GBA"
-path = "bios.bin"
 
 [[apk]]
 path = "apps/app.apk"
@@ -53,7 +50,6 @@ def _touch(path: Path, data: bytes) -> None:
 
 def _manifest(tmp_path: Path) -> Path:
     _touch(tmp_path / "roms/demo.gba", b"DEMO ROM\n")
-    _touch(tmp_path / "bios.bin", b"BIOS\n")
     _touch(tmp_path / "apps/app.apk", b"APK\n")
     path = tmp_path / "imager.toml"
     path.write_text(MANIFEST, encoding="utf-8")

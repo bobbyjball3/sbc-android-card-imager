@@ -1,2 +1,2 @@
-[[rom]]
-path = "roms/gba"
+[[overlay]]
+path = "overlays/gba"

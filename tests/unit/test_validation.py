@@ -46,27 +46,29 @@ def _symlink_or_skip(target: Path, link: Path) -> None:
 
 
 def test_warning_when_created_keeps_fields() -> None:
-    warning = Warning("junk-rom-file", "junk", 3)
+    warning = Warning("overlay-non-png", "junk", 3)
 
-    assert warning.code == "junk-rom-file"
+    assert warning.code == "overlay-non-png"
     assert warning.message == "junk"
     assert warning.entry_index == 3
 
 
 def test_destination_when_created_keeps_fields() -> None:
-    destination = Destination(PurePosixPath("Cannoli/Roms/GBA/demo.gba"), 0, "rom", Path("src"))
+    destination = Destination(
+        PurePosixPath("Cannoli/Overlays/GBA/demo.png"), 0, "overlay", Path("src")
+    )
 
-    assert destination.dest == PurePosixPath("Cannoli/Roms/GBA/demo.gba")
+    assert destination.dest == PurePosixPath("Cannoli/Overlays/GBA/demo.png")
     assert destination.entry_index == 0
-    assert destination.kind == "rom"
+    assert destination.kind == "overlay"
     assert destination.source_root == Path("src")
 
 
 def test_validate_manifest_when_unknown_platform_tag_raises(tmp_path: Path) -> None:
     manifest = _manifest(
         tmp_path,
-        '[[rom]]\nplatform = "NOPE"\npath = "roms"\n',
-        ("roms/demo.gba",),
+        '[[overlay]]\nplatform = "NOPE"\npath = "overlays/demo.png"\n',
+        ("overlays/demo.png",),
     )
 
     error = _assert_error(manifest, "unknown-platform")
@@ -77,13 +79,13 @@ def test_validate_manifest_when_unknown_platform_tag_raises(tmp_path: Path) -> N
 def test_validate_manifest_when_tag_is_lowercase_accepts_and_canonicalizes(tmp_path: Path) -> None:
     manifest = _manifest(
         tmp_path,
-        '[[rom]]\nplatform = "gba"\npath = "roms"\n',
-        ("roms/demo.gba",),
+        '[[overlay]]\nplatform = "gba"\npath = "overlays/demo.png"\n',
+        ("overlays/demo.png",),
     )
 
     assert validate_manifest(manifest) == []
     assert [destination.dest for destination in iter_destinations(manifest)] == [
-        PurePosixPath("Cannoli/Roms/GBA/demo.gba")
+        PurePosixPath("Cannoli/Overlays/GBA/demo.png")
     ]
 
 
@@ -158,30 +160,10 @@ def test_validate_manifest_when_apk_is_not_apk_raises(tmp_path: Path) -> None:
     _assert_error(manifest, "apk-extension")
 
 
-def test_validate_manifest_when_art_is_not_an_image_raises(tmp_path: Path) -> None:
-    manifest = _manifest(
-        tmp_path,
-        '[[art]]\nplatform = "GBA"\npath = "art"\n',
-        ("art/demo.txt",),
-    )
-
-    _assert_error(manifest, "art-extension")
-
-
-def test_validate_manifest_when_pc_rom_uses_non_shortcut_file_raises(tmp_path: Path) -> None:
-    manifest = _manifest(
-        tmp_path,
-        '[[rom]]\nplatform = "PC"\npath = "pc"\n',
-        ("pc/game.bin",),
-    )
-
-    _assert_error(manifest, "pc-extension")
-
-
 def test_validate_manifest_when_local_path_is_missing_raises(tmp_path: Path) -> None:
     manifest = _manifest(
         tmp_path,
-        '[[rom]]\nplatform = "GBA"\npath = "missing"\n',
+        '[[apk]]\npath = "missing"\n',
     )
 
     error = _assert_error(manifest, "missing-path")
@@ -190,9 +172,9 @@ def test_validate_manifest_when_local_path_is_missing_raises(tmp_path: Path) -> 
 
 
 def test_validate_manifest_when_local_tree_contains_symlink_raises(tmp_path: Path) -> None:
-    target = _touch(tmp_path / "real.gba")
-    _symlink_or_skip(target, tmp_path / "roms" / "link.gba")
-    manifest = _manifest(tmp_path, '[[rom]]\nplatform = "GBA"\npath = "roms"\n')
+    target = _touch(tmp_path / "real.apk")
+    _symlink_or_skip(target, tmp_path / "apps" / "link.apk")
+    manifest = _manifest(tmp_path, '[[apk]]\npath = "apps"\n')
 
     _assert_error(manifest, "symlink")
 
@@ -200,16 +182,16 @@ def test_validate_manifest_when_local_tree_contains_symlink_raises(tmp_path: Pat
 def test_validate_manifest_when_local_tree_contains_special_file_raises(tmp_path: Path) -> None:
     if not hasattr(os, "mkfifo"):
         pytest.skip("FIFOs are unavailable on this platform")
-    (tmp_path / "roms").mkdir()
-    os.mkfifo(tmp_path / "roms" / "pipe.gba")
-    manifest = _manifest(tmp_path, '[[rom]]\nplatform = "GBA"\npath = "roms"\n')
+    (tmp_path / "apps").mkdir()
+    os.mkfifo(tmp_path / "apps" / "pipe.apk")
+    manifest = _manifest(tmp_path, '[[apk]]\npath = "apps"\n')
 
     _assert_error(manifest, "special-file")
 
 
 def test_validate_manifest_when_typed_entry_has_no_files_raises(tmp_path: Path) -> None:
-    (tmp_path / "roms").mkdir()
-    manifest = _manifest(tmp_path, '[[rom]]\nplatform = "GBA"\npath = "roms"\n')
+    (tmp_path / "apps").mkdir()
+    manifest = _manifest(tmp_path, '[[apk]]\npath = "apps"\n')
 
     _assert_error(manifest, "empty-entry")
 
@@ -217,8 +199,8 @@ def test_validate_manifest_when_typed_entry_has_no_files_raises(tmp_path: Path) 
 def test_validate_manifest_when_destination_has_exfat_invalid_name_raises(tmp_path: Path) -> None:
     manifest = _manifest(
         tmp_path,
-        '[[rom]]\nplatform = "GBA"\npath = "roms"\n',
-        ("roms/bad?.gba",),
+        '[[apk]]\npath = "apps"\n',
+        ("apps/bad?.apk",),
     )
 
     _assert_error(manifest, "exfat-name")
@@ -227,8 +209,8 @@ def test_validate_manifest_when_destination_has_exfat_invalid_name_raises(tmp_pa
 def test_validate_manifest_when_destination_is_reserved_name_raises(tmp_path: Path) -> None:
     manifest = _manifest(
         tmp_path,
-        '[[bios]]\nplatform = "GBA"\npath = "bios.bin"\nas = "CON.bin"\n',
-        ("bios.bin",),
+        '[[apk]]\npath = "app.apk"\nas = "CON.apk"\n',
+        ("app.apk",),
     )
 
     _assert_error(manifest, "exfat-name")
@@ -260,8 +242,8 @@ def test_validate_manifest_when_destination_component_exceeds_255_raises(
 def test_validate_manifest_when_destinations_collide_by_case_raises(tmp_path: Path) -> None:
     manifest = _manifest(
         tmp_path,
-        '[[rom]]\nplatform = "GBA"\npath = "a"\n\n[[rom]]\nplatform = "GBA"\npath = "b"\n',
-        ("a/demo.gba", "b/DEMO.GBA"),
+        '[[apk]]\npath = "a"\n\n[[apk]]\npath = "b"\n',
+        ("a/demo.apk", "b/DEMO.APK"),
     )
 
     _assert_error(manifest, "destination-collision")
@@ -270,8 +252,9 @@ def test_validate_manifest_when_destinations_collide_by_case_raises(tmp_path: Pa
 def test_validate_manifest_when_destinations_collide_after_nfc_raises(tmp_path: Path) -> None:
     manifest = _manifest(
         tmp_path,
-        '[[rom]]\nplatform = "GBA"\npath = "a"\n\n[[rom]]\nplatform = "GBA"\npath = "b"\n',
-        ("a/caf\u00e9.gba", "b/cafe\u0301.gba"),
+        '[[artifact]]\nroot = "card"\ndest = "Guides"\npath = "a"\n\n'
+        '[[artifact]]\nroot = "card"\ndest = "Guides"\npath = "b"\n',
+        ("a/caf\u00e9.md", "b/cafe\u0301.md"),
     )
 
     with pytest.raises(ConfigError) as caught:
@@ -283,8 +266,9 @@ def test_validate_manifest_when_destinations_collide_after_nfc_raises(tmp_path: 
 def test_validate_manifest_when_destination_is_duplicated_raises(tmp_path: Path) -> None:
     manifest = _manifest(
         tmp_path,
-        '[[rom]]\nplatform = "GBA"\npath = "a"\n\n[[rom]]\nplatform = "GBA"\npath = "b"\n',
-        ("a/demo.gba", "b/demo.gba"),
+        '[[artifact]]\nroot = "card"\ndest = "Guides"\npath = "a"\n\n'
+        '[[artifact]]\nroot = "card"\ndest = "Guides"\npath = "b"\n',
+        ("a/setup.md", "b/setup.md"),
     )
 
     _assert_error(manifest, "duplicate-destination")
@@ -336,8 +320,8 @@ def test_validate_manifest_when_local_content_overflows_pinned_size_raises(
 ) -> None:
     manifest = _manifest(
         tmp_path,
-        '[image]\nsize = "64MiB"\n\n[[rom]]\nplatform = "GBA"\npath = "roms"\n',
-        ("roms/demo.gba",),
+        '[image]\nsize = "64MiB"\n\n[[artifact]]\nroot = "card"\ndest = "Guides"\npath = "files"\n',
+        ("files/setup.md",),
     )
 
     _assert_error(manifest, "content-overflow")
@@ -357,34 +341,11 @@ def test_validate_manifest_when_remote_entries_reference_existing_source_does_no
     assert validate_manifest(manifest) == []
 
 
-def test_validate_manifest_when_junk_file_is_in_rom_dir_warns(tmp_path: Path) -> None:
-    manifest = _manifest(
-        tmp_path,
-        '[[rom]]\nplatform = "GBA"\npath = "roms"\n',
-        ("roms/demo.gba", "roms/README.md"),
-    )
-
-    assert "junk-rom-file" in _codes(manifest)
-
-
-def test_validate_manifest_when_hard_required_bios_missing_warns(tmp_path: Path) -> None:
-    manifest = _manifest(
-        tmp_path,
-        '[[rom]]\nplatform = "SATURN"\npath = "roms"\n',
-        ("roms/demo.cue",),
-    )
-
-    warnings = validate_manifest(manifest)
-
-    assert [warning.code for warning in warnings] == ["missing-required-bios"]
-    assert "sega_101.bin" in warnings[0].message
-
-
 def test_validate_manifest_when_filename_is_not_nfc_warns(tmp_path: Path) -> None:
     manifest = _manifest(
         tmp_path,
-        '[[bios]]\nplatform = "GBA"\npath = "bios.bin"\nas = "cafe\u0301.bin"\n',
-        ("bios.bin",),
+        '[[apk]]\npath = "app.apk"\nas = "cafe\u0301.apk"\n',
+        ("app.apk",),
     )
 
     assert "non-nfc-name" in _codes(manifest)
@@ -398,16 +359,6 @@ def test_validate_manifest_when_source_is_unused_warns(tmp_path: Path) -> None:
     )
 
     assert "unused-source" in _codes(manifest)
-
-
-def test_validate_manifest_when_art_has_no_matching_rom_warns(tmp_path: Path) -> None:
-    manifest = _manifest(
-        tmp_path,
-        '[[rom]]\nplatform = "GBA"\npath = "roms"\n\n[[art]]\nplatform = "GBA"\npath = "art"\n',
-        ("roms/demo.gba", "art/other.png"),
-    )
-
-    assert "art-no-rom" in _codes(manifest)
 
 
 def test_validate_manifest_when_artifact_targets_config_warns(tmp_path: Path) -> None:
@@ -438,18 +389,9 @@ def test_validate_manifest_when_valid_fixture_returns_only_expected_warnings() -
     warnings = validate_manifest(manifest)
 
     assert {warning.code for warning in warnings} == {
-        "art-no-rom",
-        "junk-rom-file",
-        "missing-required-bios",
         "overlay-non-png",
         "unused-source",
     }
-
-
-def test_validate_manifest_when_static_pc_fixture_has_bad_extension_raises() -> None:
-    manifest = load_manifest(FIXTURES / "pc-invalid.toml")
-
-    _assert_error(manifest, "pc-extension")
 
 
 def test_validate_manifest_when_static_missing_path_raises() -> None:
@@ -458,81 +400,38 @@ def test_validate_manifest_when_static_missing_path_raises() -> None:
     _assert_error(manifest, "missing-path")
 
 
-def test_iter_destinations_when_rom_dir_walks_and_preserves_subdirs(tmp_path: Path) -> None:
+def test_iter_destinations_when_overlay_dir_walks_and_preserves_subdirs(
+    tmp_path: Path,
+) -> None:
     manifest = _manifest(
         tmp_path,
-        '[[rom]]\nplatform = "GBA"\npath = "roms"\n',
-        ("roms/demo.gba", "roms/sub/deep.gba"),
+        '[[overlay]]\nplatform = "GBA"\npath = "overlays"\n',
+        ("overlays/demo.png", "overlays/sub/deep.png"),
     )
 
     destinations = list(iter_destinations(manifest))
 
     assert [destination.dest for destination in destinations] == [
-        PurePosixPath("Cannoli/Roms/GBA/demo.gba"),
-        PurePosixPath("Cannoli/Roms/GBA/sub/deep.gba"),
+        PurePosixPath("Cannoli/Overlays/GBA/demo.png"),
+        PurePosixPath("Cannoli/Overlays/GBA/sub/deep.png"),
     ]
-    assert {destination.kind for destination in destinations} == {"rom"}
+    assert {destination.kind for destination in destinations} == {"overlay"}
     assert {destination.entry_index for destination in destinations} == {0}
-    assert all(destination.source_root == manifest.roms[0].path for destination in destinations)
+    assert all(destination.source_root == manifest.overlays[0].path for destination in destinations)
 
 
-def test_iter_destinations_when_rom_globs_include_and_exclude(tmp_path: Path) -> None:
+def test_iter_destinations_when_hidden_files_are_skipped(tmp_path: Path) -> None:
     manifest = _manifest(
         tmp_path,
-        '[[rom]]\nplatform = "GBA"\npath = "roms"\n'
-        'include = ["**/*.gba"]\nexclude = ["**/*.tmp"]\n',
-        ("roms/demo.gba", "roms/readme.txt", "roms/sub/deep.gba", "roms/sub/x.tmp"),
-    )
-
-    assert [destination.dest.name for destination in iter_destinations(manifest)] == [
-        "demo.gba",
-        "deep.gba",
-    ]
-
-
-def test_iter_destinations_when_hidden_and_junk_are_skipped(tmp_path: Path) -> None:
-    manifest = _manifest(
-        tmp_path,
-        '[[rom]]\nplatform = "GBA"\npath = "roms"\n',
+        '[[artifact]]\nroot = "card"\ndest = "Guides"\npath = "guides"\n',
         (
-            "roms/demo.gba",
-            "roms/.DS_Store",
-            "roms/.hidden.gba",
-            "roms/Thumbs.db",
-            "roms/cover.png",
+            "guides/setup.md",
+            "guides/.DS_Store",
+            "guides/.hidden.md",
         ),
     )
 
-    assert [destination.dest.name for destination in iter_destinations(manifest)] == ["demo.gba"]
-
-
-def test_iter_destinations_when_bios_file_uses_as(tmp_path: Path) -> None:
-    manifest = _manifest(
-        tmp_path,
-        '[[bios]]\nplatform = "GBA"\npath = "bios.bin"\nas = "gba_bios.bin"\n',
-        ("bios.bin",),
-    )
-
-    destinations = list(iter_destinations(manifest))
-
-    assert destinations == [
-        Destination(
-            PurePosixPath("Cannoli/BIOS/GBA/gba_bios.bin"), 0, "bios", manifest.bios[0].path
-        )
-    ]
-
-
-def test_iter_destinations_when_art_dir_preserves_relative_subdirs(tmp_path: Path) -> None:
-    manifest = _manifest(
-        tmp_path,
-        '[[art]]\nplatform = "GBA"\npath = "art"\n',
-        ("art/demo.png", "art/nested/other.jpg"),
-    )
-
-    assert [destination.dest for destination in iter_destinations(manifest)] == [
-        PurePosixPath("Cannoli/Art/GBA/demo.png"),
-        PurePosixPath("Cannoli/Art/GBA/nested/other.jpg"),
-    ]
+    assert [destination.dest.name for destination in iter_destinations(manifest)] == ["setup.md"]
 
 
 def test_iter_destinations_when_overlay_file_uses_as(tmp_path: Path) -> None:

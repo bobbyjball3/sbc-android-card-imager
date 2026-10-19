@@ -20,22 +20,6 @@ sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
 license = "CC0-1.0"
 attribution = "Example Spare"
 
-[[rom]]
-platform = "GBA"
-path = "assets/roms/gba"
-
-[[rom]]
-platform = "SATURN"
-path = "assets/roms/saturn"
-
-[[bios]]
-platform = "GBA"
-path = "assets/bios/gba"
-
-[[art]]
-platform = "GBA"
-path = "assets/art/gba"
-
 [[overlay]]
 platform = "GBA"
 path = "assets/overlays/gba"

@@ -25,7 +25,6 @@ from tests.fakes import FakeRunner
 SETTINGS = "Cannoli/Config/settings.json"
 CREDITS = "CREDITS.md"
 GBA_ROM = "Cannoli/Roms/GBA/demo.gba"
-GBA_BIOS = "Cannoli/BIOS/GBA/bios.bin"
 APK = "APKs/app.apk"
 
 LOCAL = """
@@ -33,13 +32,10 @@ LOCAL = """
 name = "demo"
 reserve = "1MiB"
 
-[[rom]]
-platform = "GBA"
+[[artifact]]
+root = "cannoli"
+dest = "Roms/GBA"
 path = "roms"
-
-[[bios]]
-platform = "GBA"
-path = "bios.bin"
 
 [[apk]]
 path = "apps/app.apk"
@@ -47,7 +43,6 @@ path = "apps/app.apk"
 
 LOCAL_FILES = {
     "roms/demo.gba": b"ROMDATA",
-    "bios.bin": b"BIOS",
     "apps/app.apk": b"APK",
 }
 
@@ -95,7 +90,6 @@ def test_build_expected_when_local_manifest_hashes_files_and_markers(tmp_path: P
 
     assert expected.files == {
         GBA_ROM: _sha(b"ROMDATA"),
-        GBA_BIOS: _sha(b"BIOS"),
         APK: _sha(b"APK"),
         SETTINGS: _sha(b"{}\n"),
         CREDITS: _sha(plan.credits_marker.content.encode()),
