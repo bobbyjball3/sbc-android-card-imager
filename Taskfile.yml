@@ -1,0 +1,63 @@
+version: '3'
+
+tasks:
+  setup:
+    desc: Install dependencies and git hooks
+    cmds:
+      - uv sync --all-groups
+      - uv run pre-commit install
+
+  format:
+    desc: Format the codebase
+    cmds:
+      - uv run ruff check --fix .
+      - uv run ruff format .
+
+  lint:
+    desc: Check lint, formatting, and types
+    cmds:
+      - uv run ruff check .
+      - uv run ruff format --check .
+      - uv run pyright
+
+  test:
+    desc: Run unit tests
+    cmds:
+      - uv run pytest -m "not integration" -q
+
+  test:integration:
+    desc: Run integration tests on Linux with sudo
+    cmds:
+      - sudo -E env "PATH=$PATH" uv run pytest -m integration -q
+
+  container:
+    desc: Build the assembler container image
+    cmds:
+      - docker build -t sbc-imager-assembler:local .
+
+  plan:
+    desc: Plan a card build from the sample manifest
+    cmds:
+      - uv run sbc-imager plan --manifest examples/imager.toml
+
+  build:
+    desc: Build a card image from the sample manifest
+    cmds:
+      - uv run sbc-imager build --manifest examples/imager.toml
+
+  verify:
+    desc: Verify a built image against the sample manifest
+    cmds:
+      - uv run sbc-imager verify --image dist/demo.img --manifest examples/imager.toml
+
+  image:
+    desc: Write a verified image to a removable card
+    cmds:
+      - sudo -E env "PATH=$PATH" uv run sbc-imager image --image dist/demo.img
+
+  ci:
+    desc: Run the local CI gate
+    cmds:
+      - task: lint
+      - task: test
+      - uv build
