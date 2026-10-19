@@ -13,6 +13,7 @@ from sbc_imager.build import BuildOptions, Services, build_image
 from sbc_imager.config import Manifest, load_manifest
 from sbc_imager.errors import AssemblerError, SafetyError, VerificationError
 from sbc_imager.planner import BuildPlan, Marker
+from sbc_imager.progress import ProgressEvent, encode_progress_line
 from sbc_imager.sources import ResolvedSource
 from sbc_imager.staging import StageResult, StageTotals
 from sbc_imager.validation import Warning
@@ -26,6 +27,18 @@ class Recorded:
     name: str
     args: tuple[object, ...]
     kwargs: dict[str, object]
+
+
+class RecordingReporter:
+    def __init__(self) -> None:
+        self.events: list[ProgressEvent] = []
+        self.closed = False
+
+    def emit(self, event: ProgressEvent) -> None:
+        self.events.append(event)
+
+    def close(self) -> None:
+        self.closed = True
 
 
 def _plan(*, content_bytes: int = 10, warnings: tuple[Warning, ...] = ()) -> BuildPlan:
@@ -269,19 +282,25 @@ def test_build_when_pipeline_succeeds_runs_in_order_and_publishes(
     assert _call(services, "preflight").args == (lines.append,)
     staged = services.staged
     assert staged is not None
+    stream_line = _call(services, "assemble").args[4]
+    assert callable(stream_line)
     assert _call(services, "assemble").args == (
         plan,
         staged,
         work_root / "out",
         "card",
-        lines.append,
+        stream_line,
     )
+    stream_line("visible line")
+    stream_line(encode_progress_line(ProgressEvent("copy", "hidden progress", 1, 2)))
+    assert "visible line" in lines
+    assert "hidden progress" not in lines
     verify_call = _call(services, "verify")
     assert verify_call.args == (tmp_path / "imager.toml", work_root / "out" / "card.img")
     assert verify_call.kwargs == {
         "offline": True,
         "allow_branch": False,
-        "on_line": lines.append,
+        "on_line": stream_line,
     }
     assert services.work_existed_at_stage is True
     assert report.image == str(manifest.image.output)
@@ -289,7 +308,7 @@ def test_build_when_pipeline_succeeds_runs_in_order_and_publishes(
     assert manifest.image.output.read_bytes() == b"IMAGE"
     assert not manifest.image.output.with_name("card.img.partial").exists()
     assert work_root.exists() is False
-    assert "Wrote" in lines[-1]
+    assert any("Wrote" in line for line in lines)
 
     payload = json.loads(
         manifest.image.output.with_name("card.img.report.json").read_text(encoding="utf-8")
@@ -518,3 +537,29 @@ def test_build_when_default_services_are_used_builds_them(
 
     assert services.calls[0].name == "load"
     assert services.calls[-1].name == "close"
+
+
+def test_build_when_progress_reporter_provided_emits_phases(tmp_path: Path) -> None:
+    manifest = _manifest(tmp_path)
+    plan = _plan()
+    services = FakeServices(manifest, plan, output_path=manifest.image.output)
+    reporter = RecordingReporter()
+
+    build_image(
+        _options(manifest, tmp_path),
+        _wire(services),
+        log=lambda _line: None,
+        progress=reporter,
+    )
+
+    phases = {event.phase for event in reporter.events}
+    assert {
+        "load",
+        "resolve",
+        "stage",
+        "container",
+        "assemble",
+        "verify-image",
+        "publish-output",
+    } <= phases
+    assert reporter.closed is True

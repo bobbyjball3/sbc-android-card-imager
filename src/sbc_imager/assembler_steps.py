@@ -23,6 +23,7 @@ from sbc_imager.runner import Runner
 _CHUNK = 8 * 1024 * 1024
 _LOOP_RE = re.compile(r"/dev/loop\d+")
 Progress = Callable[[str, int, int], None]
+ProgressCount = Callable[[int, int], None]
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,7 +144,13 @@ def _write_marker(mountpoint: Path, marker_path: str, content: str) -> None:
     target.write_bytes(data)
 
 
-def populate(stage_dir: Path, mountpoint: Path, plan: StagePlan, progress: Progress | None) -> None:
+def populate(
+    stage_dir: Path,
+    mountpoint: Path,
+    plan: StagePlan,
+    progress: Progress | None,
+    on_progress: ProgressCount | None = None,
+) -> None:
     """Create directories and markers, then copy and hash the staged files."""
     expected = expected_files(plan)
     staged = sorted(
@@ -173,20 +180,36 @@ def populate(stage_dir: Path, mountpoint: Path, plan: StagePlan, progress: Progr
         current += 1
         if progress is not None:
             progress("copy", current, total)
+        if on_progress is not None:
+            on_progress(current, total)
 
     for marker in (plan.settings_marker, plan.credits_marker):
         _write_marker(mountpoint, marker.path.as_posix(), marker.content)
         current += 1
         if progress is not None:
             progress("copy", current, total)
+        if on_progress is not None:
+            on_progress(current, total)
 
 
-def verify(mountpoint: Path, plan: StagePlan, progress: Progress | None) -> tuple[TreeEntry, ...]:
+def verify(
+    mountpoint: Path,
+    plan: StagePlan,
+    progress: Progress | None,
+    on_progress: ProgressCount | None = None,
+) -> tuple[TreeEntry, ...]:
     """Hash the mounted tree, compare it to the plan, and report progress."""
     tree = scan_tree(mountpoint)
     verify_tree(expected_files(plan), tree)
     total = len(tree)
+    if on_progress is not None:
+        on_progress(0, total)
     if progress is not None:
         for current, _ in enumerate(tree, start=1):
             progress("verify", current, total)
+            if on_progress is not None:
+                on_progress(current, total)
+    elif on_progress is not None:
+        for current, _ in enumerate(tree, start=1):
+            on_progress(current, total)
     return tree

@@ -183,6 +183,7 @@ def test_build_when_options_absent_passes_none_and_false(
     assert options.force is False
     assert options.keep_work is False
     assert options.allow_branch is False
+    assert options.progress == "auto"
 
 
 def test_build_when_json_requested_prints_only_the_report(
@@ -253,6 +254,7 @@ def test_build_help_when_requested_lists_every_option() -> None:
         "--device",
         "--expand",
         "--allow-builtin-sd",
+        "--progress",
         "--offline",
         "--force",
         "--keep-work",
@@ -260,6 +262,53 @@ def test_build_help_when_requested_lists_every_option() -> None:
         "--json",
     ):
         assert option in result.stdout
+
+
+def test_build_when_progress_mode_given_forwards_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = _manifest(tmp_path)
+    seen = _patch(monkeypatch, report=_report(tmp_path))
+
+    result = runner.invoke(
+        app,
+        ["build", "--manifest", str(manifest), "--progress", "json"],
+    )
+
+    assert result.exit_code == 0, result.stderr
+    assert seen["options"].progress == "json"
+
+
+def test_build_when_progress_mode_is_invalid_exits_two(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = _manifest(tmp_path)
+    seen = _patch(monkeypatch, report=_report(tmp_path))
+
+    result = runner.invoke(
+        app,
+        ["build", "--manifest", str(manifest), "--progress", "loud"],
+    )
+
+    assert result.exit_code == 2
+    assert "unsupported progress mode" in result.stderr
+    assert seen == {}
+
+
+def test_build_when_progress_json_wraps_normal_logs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = _manifest(tmp_path)
+    _patch(monkeypatch, report=_report(tmp_path), log_line="staged files")
+
+    result = runner.invoke(
+        app,
+        ["build", "--manifest", str(manifest), "--progress", "json"],
+    )
+
+    assert result.exit_code == 0, result.stderr
+    assert '"event": "log"' in result.stderr
+    assert '"message": "staged files"' in result.stderr
 
 
 def test_build_expand_when_builtin_sd_forwards_exact_size(

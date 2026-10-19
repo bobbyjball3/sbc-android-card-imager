@@ -34,10 +34,16 @@ from sbc_imager.assembler_steps import (
     verify,
 )
 from sbc_imager.errors import AssemblerError, SbcImagerError
+from sbc_imager.progress import ProgressEvent, encode_progress_line
 from sbc_imager.runner import Runner, SubprocessRunner
 
 Progress = Callable[[str, int, int], None]
+OnProgress = Callable[[ProgressEvent], None]
 _LOOP_RE = re.compile(r"/dev/loop\d+")
+
+
+def _emit_progress(event: ProgressEvent) -> None:
+    print(encode_progress_line(event), flush=True)
 
 
 def _prepare_work(work: Path) -> tuple[Path, Path]:
@@ -76,6 +82,7 @@ def assemble(
     progress: Progress | None = None,
     *,
     label: str | None = None,
+    on_progress: OnProgress | None = None,
 ) -> Report:
     """Build, verify, and atomically publish an image from a stage plan."""
     stage = Path(stage_dir)
@@ -87,8 +94,21 @@ def assemble(
 
     work = Path(work_dir)
     image, mountpoint = _prepare_work(work)
+
+    def emit(
+        phase: str,
+        message: str,
+        current: int | None = None,
+        total: int | None = None,
+        done: bool = False,
+    ) -> None:
+        if on_progress is not None:
+            on_progress(ProgressEvent(phase, message, current, total, done))
+
+    emit("prepare", "Creating sparse image")
     fs.create_sparse(image, plan.image_bytes)
     _write_header(image, plan.partition_bytes)
+    emit("prepare", "Created sparse image", done=True)
     expected_files(plan)
 
     loop: str | None = None
@@ -96,17 +116,37 @@ def assemble(
     failure: BaseException | None = None
     try:
         loop = attach_loop(runner, image, plan.partition_offset_bytes, plan.partition_bytes)
+        emit("format", "Formatting exFAT")
         make_filesystem(runner, effective_label, loop)
+        emit("format", "Formatted exFAT", done=True)
         mount_filesystem(runner, loop, mountpoint, readonly=False)
         mounted = True
-        populate(stage, mountpoint, plan, progress)
+        total = len(plan.entries) + 2
+        emit("copy", "Copying files", 0, total)
+        populate(
+            stage,
+            mountpoint,
+            plan,
+            progress,
+            on_progress=lambda current, total: emit("copy", "Copying files", current, total),
+        )
+        emit("copy", "Copied files", total, total, done=True)
         os.sync()
         unmount(runner, mountpoint)
         mounted = False
+        emit("fsck", "Checking filesystem")
         check_filesystem(runner, loop)
+        emit("fsck", "Checked filesystem", done=True)
         mount_filesystem(runner, loop, mountpoint, readonly=True)
         mounted = True
-        tree = verify(mountpoint, plan, progress)
+        emit("verify", "Verifying tree", 0)
+        tree = verify(
+            mountpoint,
+            plan,
+            progress,
+            on_progress=lambda current, total: emit("verify", "Verifying tree", current, total),
+        )
+        emit("verify", "Verified tree", done=True)
 
         tree_path = work / "tree.json"
         tree_path.write_bytes(tree_bytes(tree))
@@ -129,7 +169,9 @@ def assemble(
         cleanup(runner, MountState(mountpoint, loop, True))
         mounted = False
         loop = None
+        emit("publish", "Publishing image")
         _publish(image, Path(out_path))
+        emit("publish", "Published image", done=True)
         return report
     except BaseException as exc:
         failure = exc
@@ -237,6 +279,7 @@ def main(argv: list[str] | None = None) -> int:
             args.work,
             SubprocessRunner(),
             label=args.label,
+            on_progress=_emit_progress,
         )
         print(
             f"assembled {report.content_files} files ({report.content_bytes} bytes) into {args.out}"

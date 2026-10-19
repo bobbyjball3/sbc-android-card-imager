@@ -301,12 +301,27 @@ def build(
     force: bool = typer.Option(False, "--force"),
     keep_work: bool = typer.Option(False, "--keep-work"),
     allow_branch: bool = typer.Option(False, "--allow-branch"),
+    progress: str = typer.Option(
+        "auto",
+        "--progress",
+        help="Progress output: auto, human, json, or none.",
+    ),
     json_output: bool = typer.Option(False, "--json"),
 ) -> None:
     """Build, verify, and atomically publish a card image."""
 
+    progress_mode = progress.casefold()
+    if progress_mode not in {"auto", "human", "json", "none"}:
+        raise ConfigError(
+            f"unsupported progress mode {progress!r}",
+            hint="use auto, human, json, or none",
+        )
+
     def log(line: str) -> None:
-        typer.echo(line, err=True)
+        if progress_mode == "json":
+            typer.echo(json.dumps({"event": "log", "message": line}), err=True)
+        else:
+            typer.echo(line, err=True)
 
     if size is not None and expand:
         raise ConfigError(
@@ -342,6 +357,7 @@ def build(
         force=force,
         keep_work=keep_work,
         allow_branch=allow_branch,
+        progress=progress_mode,
     )
     report = build_image(options, log=log)
     if json_output:

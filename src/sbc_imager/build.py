@@ -18,6 +18,12 @@ from sbc_imager.config import Manifest, load_manifest
 from sbc_imager.errors import AssemblerError, SafetyError, VerificationError
 from sbc_imager.fs import copy_sparse, sha256_file
 from sbc_imager.planner import BuildPlan, build_plan, source_rows
+from sbc_imager.progress import (
+    ProgressEvent,
+    ProgressReporter,
+    make_reporter,
+    parse_progress_line,
+)
 from sbc_imager.runner import SubprocessRunner
 from sbc_imager.sizes import format_size
 from sbc_imager.sources import ResolvedSource, SourceCache
@@ -40,6 +46,7 @@ class BuildOptions:
     force: bool = False
     keep_work: bool = False
     allow_branch: bool = False
+    progress: str = "auto"
 
 
 @dataclass(frozen=True, slots=True)
@@ -211,45 +218,72 @@ def build_image(
     services: Services | None = None,
     *,
     log: Log = print,
+    progress: ProgressReporter | None = None,
 ) -> BuildReport:
     active = services if services is not None else default_services()
+    reporter = progress if progress is not None else make_reporter(options.progress)
     work: Path | None = None
     failure: BaseException | None = None
+
+    def handle_line(line: str) -> None:
+        event = parse_progress_line(line)
+        if event is None:
+            log(line)
+        else:
+            reporter.emit(event)
+
+    def phase(name: str, message: str, *, done: bool = False) -> None:
+        reporter.emit(ProgressEvent(name, message, done=done))
+
     try:
+        phase("load", "Loading manifest")
         manifest = active.load(options.manifest_path)
         active.validate(manifest)
+        phase("load", "Loaded manifest", done=True)
         target = _target(manifest, options.output)
         _refuse_existing(target, options.force)
+        phase("resolve", "Resolving sources")
         sources = active.resolve(
             manifest, offline=options.offline, allow_branch=options.allow_branch
         )
+        phase("resolve", "Resolved sources", done=True)
         plan = active.plan(manifest, sources, size=options.size, reserve=options.reserve)
         output_dir = _parent(target)
         work = Path(tempfile.mkdtemp(prefix="sbc-build-"))
         _check_space(active.disk_usage, work, output_dir, plan)
+        phase("stage", "Staging files")
         staged = active.stage(plan, work)
+        phase("stage", "Staged files", done=True)
         log(f"Staged {len(plan.entries)} files in {work}")
+        phase("container", "Preparing assembler")
         active.ensure_container()
         active.preflight(log)
+        phase("container", "Prepared assembler", done=True)
         out_dir = work / "out"
         out_dir.mkdir()
         name = target.stem
-        returncode = active.assemble(plan, staged, out_dir, name, log)
+        phase("assemble", "Assembling image")
+        returncode = active.assemble(plan, staged, out_dir, name, handle_line)
+        phase("assemble", "Assembled image", done=True)
         if returncode != 0:
             raise AssemblerError(f"assembler failed with exit code {returncode}")
         image = out_dir / f"{name}.img"
         if not image.is_file():
             raise AssemblerError(f"assembler produced no image at {image}")
+        phase("verify-image", "Verifying image")
         verified = active.verify(
             options.manifest_path,
             image,
             offline=True,
             allow_branch=options.allow_branch,
-            on_line=log,
+            on_line=handle_line,
         )
+        phase("verify-image", "Verified image", done=True)
         if not verified.ok:
             raise VerificationError(_describe(verified))
+        phase("publish-output", "Publishing image")
         _publish(image, target)
+        phase("publish-output", "Published image", done=True)
         report = BuildReport(
             manifest=str(options.manifest_path),
             image=str(target),
@@ -279,4 +313,5 @@ def build_image(
                 else:
                     shutil.rmtree(work, ignore_errors=True)
         finally:
+            reporter.close()
             active.close()
