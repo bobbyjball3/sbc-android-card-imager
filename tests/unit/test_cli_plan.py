@@ -123,6 +123,24 @@ def test_plan_when_strict_and_warning_exists_exits_two(tmp_path: Path) -> None:
     assert "missing-required-bios" in result.stderr
 
 
+@pytest.mark.parametrize("target_kind", ["file", "directory"])
+def test_plan_when_typed_root_is_symlink_exits_two(tmp_path: Path, target_kind: str) -> None:
+    target = tmp_path / "real"
+    if target_kind == "directory":
+        target.mkdir()
+        (target / "demo.gba").write_bytes(b"rom")
+    else:
+        target.write_bytes(b"rom")
+    link = tmp_path / "link"
+    link.symlink_to(target, target_is_directory=target_kind == "directory")
+    manifest = _manifest(tmp_path, f'[[rom]]\nplatform = "GBA"\npath = "{link.name}"\n')
+
+    result = runner.invoke(app, ["plan", "--manifest", str(manifest)])
+
+    assert result.exit_code == 2
+    assert "symlink: rom[0]" in result.stderr
+
+
 def test_plan_when_invoked_writes_no_stage_or_image(tmp_path: Path) -> None:
     manifest = _manifest(tmp_path, LOCAL, LOCAL_FILES)
 

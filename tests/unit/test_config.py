@@ -137,6 +137,44 @@ def test_load_manifest_when_local_path_uses_tilde_expands_home() -> None:
     assert "~" not in str(tilde_path)
 
 
+@pytest.mark.parametrize("target_kind", ["file", "directory"])
+def test_load_manifest_when_typed_root_is_symlink_raises(tmp_path: Path, target_kind: str) -> None:
+    target = tmp_path / "real"
+    if target_kind == "directory":
+        target.mkdir()
+        (target / "demo.gba").write_bytes(b"rom")
+    else:
+        target.write_bytes(b"rom")
+    link = tmp_path / "link"
+    link.symlink_to(target, target_is_directory=target_kind == "directory")
+    manifest_path = tmp_path / "symlink.toml"
+    manifest_path.write_text(f'[[rom]]\nplatform = "GBA"\npath = "{link.name}"\n', encoding="utf-8")
+
+    with pytest.raises(ConfigError) as caught:
+        load_manifest(manifest_path)
+
+    assert "symlink: rom[0]" in caught.value.message
+
+
+def test_load_manifest_when_typed_path_parent_is_symlink_allows(
+    tmp_path: Path,
+) -> None:
+    real = tmp_path / "real"
+    (real / "roms").mkdir(parents=True)
+    (real / "roms" / "demo.gba").write_bytes(b"rom")
+    link = tmp_path / "link"
+    link.symlink_to(real, target_is_directory=True)
+    manifest_path = tmp_path / "parent-symlink.toml"
+    manifest_path.write_text(
+        '[[rom]]\nplatform = "GBA"\npath = "link/roms/demo.gba"\n', encoding="utf-8"
+    )
+
+    manifest = load_manifest(manifest_path)
+
+    assert manifest.roms[0].path == (real / "roms" / "demo.gba").resolve()
+    assert not manifest.roms[0].path.is_symlink()
+
+
 def test_load_manifest_when_targets_do_not_exist_still_loads() -> None:
     missing_rom = FIXTURES / "roms" / "gba"
     assert not missing_rom.exists()

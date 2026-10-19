@@ -193,6 +193,8 @@ class _ManifestParser:
         path = Path(self._required_text(table, key, where)).expanduser()
         if not path.is_absolute():
             path = self.base_dir / path
+        if path.is_symlink():
+            _fail(f"symlink: {where} is a symlink: {path}")
         return path.resolve()
 
     def _asset_path(self, table: _Table, where: str) -> Path:

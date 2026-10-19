@@ -204,9 +204,10 @@ Errors stop the command with exit code 2 before image bytes are written:
   uppercase form from the pinned Cannoli registry.
 - A missing local path, or a symlink/special file in a local typed `path` tree
   (`[[rom]]`, `[[bios]]`, `[[art]]`, local `[[overlay]]`/`[[shader]]`, `[[apk]]`,
-  or `[[artifact]]`). Trees resolved through `[[source]]` (local, git, or URL)
-  are copied as declared and are not scanned for symlinks or special files by
-  validation.
+  or `[[artifact]]`). The typed root itself may not be a symlink; symlinked
+  parent directories are followed. Trees resolved through `[[source]]` (local,
+  git, or URL) are copied as declared and are not scanned for symlinks or
+  special files by validation.
 - An overlay that is not `.png`; a shader file that is not `.glslp` or a local
   shader directory with no root `.glslp`; an APK that is not `.apk`; art that is
   not an image; a `PC` ROM file that is not a supported shortcut.
