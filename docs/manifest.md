@@ -30,10 +30,10 @@ not.
 ## Path resolution
 
 - The manifest path itself is opened as-is; `~` expands to your home directory.
-- `[[apk]]` and `[[artifact]]` `path` values are local, as are
-  `[[overlay]]`/`[[shader]]` `path` values without `source`. A relative path
-  resolves against the manifest's directory, `~` expands, and the result is
-  resolved to an absolute path.
+- `[[apk]]` and `[[artifact]]` `path` values are local unless `source` is
+  present, as are `[[overlay]]`/`[[shader]]` `path` values without `source`. A
+  relative path resolves against the manifest's directory, `~` expands, and the
+  result is resolved to an absolute path.
 - For `[[overlay]]` and `[[shader]]`, a missing `source` means the `path` is a
   local path and follows the rule above. When `source` is present, `path` is a
   path inside that source's resolved root (or the source's `subdir`); it must be
@@ -44,6 +44,10 @@ not.
 - For `[[apk]]`, a missing `source` means `path` is a local file or directory.
   With `source`, `path` is not allowed and `as` names the single file that the
   GitHub source resolves to.
+- For `[[artifact]]`, a missing `source` means `path` is a local file or
+  directory. With `source`, `path` is not allowed, `as` is required, and it
+  names the single file that the source resolves to. Source artifacts are
+  single-file only; a source root that resolves to a directory is an error.
 - `[image].output` resolves against the manifest directory; the default is
   `dist/<name>.img`.
 - `as` values are a single filename component, never a path. They rename a file
@@ -65,8 +69,9 @@ errors.
 
 ## [[source]]
 
-Remote sources may be referenced by `[[overlay]]`, `[[shader]]`, and `[[apk]]`
-entries. Generic artifacts must be local.
+Remote sources may be referenced by `[[overlay]]`, `[[shader]]`, `[[apk]]`, and
+single-file `[[artifact]]` entries. Local artifacts keep their existing `path`
+behavior.
 
 | Key | Type | Required | Meaning |
 | --- | --- | --- | --- |
@@ -104,8 +109,8 @@ Pinning rules:
 - **local:** paths are not copied into the cache and are re-read on every build.
 
 Duplicate source ids are rejected. `plan` resolves only sources referenced by an
-overlay, shader, or APK; `fetch` resolves every declared source; `build`
-resolves the sources it needs. An unused source produces a warning.
+overlay, shader, APK, or artifact; `fetch` resolves every declared source;
+`build` resolves the sources it needs. An unused source produces a warning.
 
 ## Typed entries
 
@@ -167,12 +172,15 @@ require `license`/`attribution` entries because GitHub resolution detects them.
 | --- | --- | --- | --- |
 | `root` | string | no | `cannoli` (default) or `card`. |
 | `dest` | string | yes | Relative destination directory inside the chosen root. |
-| `path` | string | yes | Local file or directory. |
-| `as` | string | no | Rename a single-file entry; ignored for directories. |
+| `path` | string | without `source` | Local file or directory. |
+| `source` | string | no | A declared `[[source]].id`; single-file artifact only. |
+| `as` | string | with `source` | Rename the source artifact; required for source artifacts. |
 
-Destination: `<card root>/<dest>/...` or `Cannoli/<dest>/...`. Writing into
-`Config/` produces an `artifact-config` warning. `Cannoli/Config/settings.json`
-and `CREDITS.md` are reserved and cannot be targeted.
+Destination: `<card root>/<dest>/...` or `Cannoli/<dest>/...`. A source artifact
+lands at `<root>/<dest>/<as>` and is copied as one file; its source root must be
+a file, not a directory. Writing into `Config/` produces an `artifact-config`
+warning for both local and source artifacts. `Cannoli/Config/settings.json` and
+`CREDITS.md` are reserved and cannot be targeted.
 
 ## Validation rules
 
@@ -184,9 +192,8 @@ Errors stop the command with exit code 2 before image bytes are written:
   supplied by Cannoli/RomM.
 - `repo`/`tag`/`asset` on a non-GitHub source, `url`/`ref`/`subdir`/`filename`
   on a GitHub source, and a `repo` that is not `owner/name`.
-- A GitHub `asset` that is not a plain file name, or a `[[apk]]` that sets both
-  `source` and `path`, or sets `source` without `as`.
-- `source` on an artifact entry (it is an unknown key).
+- A GitHub `asset` that is not a plain file name, or an `[[apk]]`/`[[artifact]]`
+  that sets both `source` and `path`, or sets `source` without `as`.
 - Unknown or case-ambiguous platform tags on `[[overlay]]`. Tags are normalized
   to the canonical uppercase form from the pinned Cannoli registry.
 - A missing local path, or a symlink/special file in a local typed `path` tree
@@ -198,6 +205,9 @@ Errors stop the command with exit code 2 before image bytes are written:
   shader directory with no root `.glslp`; an APK that is not `.apk`.
 - A source APK whose `as` is not `.apk`, or whose resolved source root is a
   directory rather than one file.
+- A source artifact whose resolved source root is a directory rather than one
+  file. Source artifacts have no extension rule and land at
+  `<root>/<dest>/<as>`.
 - A typed entry that produces zero files.
 - exFAT-invalid path components: the characters `\ / : * ? " < > |`, control
   characters, a trailing dot or space, the reserved names `CON`, `PRN`, `AUX`,
@@ -391,6 +401,35 @@ as = "Obtainium.apk"
 
 The release must be pinned by exact `tag`; `release = "latest"` is not supported
 in Phase 1. The asset is selected by exact name and lands at `APKs/Obtainium.apk`.
+
+### Pinned GitHub release artifact (valid)
+
+<!-- valid-manifest -->
+```toml
+[image]
+name = "rg477m"
+size = "auto"
+reserve = "1MiB"
+
+[[source]]
+id = "emulation-pack"
+type = "github"
+repo = "RJNY/Obtainium-Emulation-Pack"
+tag = "v8.0.1"
+asset = "obtainium-emulation-pack-v8.0.1.json"
+
+[[artifact]]
+root = "card"
+dest = "Obtainium"
+source = "emulation-pack"
+as = "obtainium-emulation-pack-v8.0.1.json"
+```
+
+A source artifact is single-file only: the source root must resolve to a file,
+`path` is not allowed, `as` is required, and the result lands at
+`Obtainium/obtainium-emulation-pack-v8.0.1.json`. The exact `tag` and `asset`
+are pinned; mutable release selectors are not supported. A local artifact keeps
+using `path` and may be a file or directory.
 
 ### Pinned size with a reserve (valid)
 

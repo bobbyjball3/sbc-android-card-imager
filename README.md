@@ -193,8 +193,9 @@ generated data, emulator cores, and app-private data are never included.
 - **ROMs, BIOS files, and box art are RomM-supplied.** Cannoli/RomM provides
   those files on the card; this tool does not download or copy them. Remote
   sources are supported for `[[overlay]]`, `[[shader]]`, and single-file
-  `[[apk]]` entries; GitHub APK sources require an exact tag and asset name.
-  The repository contains no copyrighted ROMs or BIOS files.
+  `[[apk]]`/`[[artifact]]` entries; GitHub APK and artifact sources require an
+  exact tag and asset name. The repository contains no copyrighted ROMs or BIOS
+  files.
 - **No zero-touch first boot.** The card preselects Cannoli as an existing
   install and ships every platform folder, but you still configure emulators,
   cores, and settings on first launch.

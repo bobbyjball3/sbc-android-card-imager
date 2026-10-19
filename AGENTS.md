@@ -96,7 +96,7 @@ and `[image].size` supports `auto` or human-readable units (`reserve` likewise).
 entries map to `Cannoli/Overlays/<TAG>`, `Cannoli/Shaders/<preset>`, and root `APKs/`;
 generic artifacts target an explicit root and destination, including the retained
 `Cannoli/Roms/<TAG>`, `Cannoli/BIOS`, and `Cannoli/Art` skeleton. Overlays,
-shaders, and APKs may reference a `source` id instead of a local path.
+shaders, APKs, and artifacts may reference a `source` id instead of a local path.
 Git sources require a pinned `ref` (commit or tag; branches need `--allow-branch`) and
 HTTP sources require a pinned lowercase `sha256`. GitHub sources require `type =
 "github"`, `repo = "owner/name"`, an exact `tag`, and an exact `asset` file name.
