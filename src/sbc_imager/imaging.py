@@ -1,8 +1,9 @@
-"""Safe enumeration and presentation of removable macOS disks."""
+"""Safe enumeration, assessment, and presentation of macOS disks."""
 
 from __future__ import annotations
 
 import plistlib
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Final
@@ -17,12 +18,14 @@ from sbc_imager.imaging_write import write_image as write_image
 from sbc_imager.runner import Runner
 from sbc_imager.sizes import format_size
 
-_REMOVABLE_PROTOCOLS: Final[frozenset[str]] = frozenset({"USB", "Secure Digital", "SD Card"})
+_SD_PROTOCOLS: Final[frozenset[str]] = frozenset({"Secure Digital", "SD Card"})
+_REMOVABLE_PROTOCOLS: Final[frozenset[str]] = frozenset({"USB"}) | _SD_PROTOCOLS
+_DISK_DEVICE: Final = re.compile(r"(?:/dev/r?)?(disk\d+)")
 
 
 @dataclass(frozen=True, slots=True)
 class DiskInfo:
-    """A whole physical disk that is safe to offer as a flashing target."""
+    """A whole physical disk reported by ``diskutil``."""
 
     identifier: str
     size: int
@@ -34,10 +37,54 @@ class DiskInfo:
     ejectable: bool
     whole: bool
     serial: str | None = None
+    virtual_or_physical: str = "Physical"
+    boot: bool = False
+
+    @property
+    def is_builtin_sd(self) -> bool:
+        """Return whether this is an internal, removable SD-card reader."""
+        return (
+            self.whole
+            and self.internal
+            and self.virtual_or_physical == "Physical"
+            and (self.removable or self.ejectable)
+            and self.protocol in _SD_PROTOCOLS
+        )
 
 
-def enumerate_disks(runner: Runner) -> list[DiskInfo]:
-    """Return external removable whole disks, excluding the disk backing ``/``."""
+@dataclass(frozen=True, slots=True)
+class DiskAssessment:
+    """A whole disk plus whether it may be used and why."""
+
+    disk: DiskInfo
+    allowed: bool
+    status: str
+    reason: str
+
+
+def normalize_disk_identifier(raw: str) -> str:
+    """Normalize ``diskN``, ``/dev/diskN``, or ``/dev/rdiskN`` to ``diskN``."""
+    value = raw.strip()
+    match = _DISK_DEVICE.fullmatch(value)
+    if match is None:
+        raise SafetyError(
+            f"invalid device {raw!r}; expected diskN, /dev/diskN, or /dev/rdiskN",
+            hint="run `sbc-imager image --list` to see the available whole disks",
+        )
+    return match.group(1)
+
+
+def enumerate_disks(runner: Runner, *, allow_builtin_sd: bool = False) -> list[DiskInfo]:
+    """Return safe whole disks, including internal SD readers when opted in."""
+    return [
+        assessment.disk
+        for assessment in assess_disks(runner, allow_builtin_sd=allow_builtin_sd)
+        if assessment.allowed
+    ]
+
+
+def assess_disks(runner: Runner, *, allow_builtin_sd: bool = False) -> list[DiskAssessment]:
+    """Return every whole disk with its safety status and reason."""
     listing = _load_plist(
         runner.run(["diskutil", "list", "-plist"]).stdout,
         "diskutil list",
@@ -52,17 +99,20 @@ def enumerate_disks(runner: Runner) -> list[DiskInfo]:
     )
     boot_identifier = _required_string(root, "ParentWholeDisk", "diskutil info /")
 
-    disks: list[DiskInfo] = []
+    assessments: list[DiskAssessment] = []
     for identifier in identifiers:
         where = f"diskutil info {identifier}"
         info = _load_plist(
             runner.run(["diskutil", "info", "-plist", f"/dev/{identifier}"]).stdout,
             where,
         )
-        disk = _parse_disk(info, boot_identifier=boot_identifier, where=where)
-        if disk is not None:
-            disks.append(disk)
-    return disks
+        disk = _parse_disk(
+            info,
+            boot_identifier=boot_identifier,
+            where=where,
+        )
+        assessments.append(_assess_disk(disk, allow_builtin_sd=allow_builtin_sd))
+    return assessments
 
 
 def render_table(console: Console, disks: Sequence[DiskInfo]) -> None:
@@ -85,6 +135,53 @@ def render_table(console: Console, disks: Sequence[DiskInfo]) -> None:
     console.print(table)
 
 
+def render_assessment_table(console: Console, assessments: Sequence[DiskAssessment]) -> None:
+    """Print every whole disk with its status and the reason for that status."""
+    table = Table("Identifier", "Label", "Size", "Model", "Protocol", "Status", "Reason")
+    for assessment in assessments:
+        disk = assessment.disk
+        table.add_row(
+            disk.identifier,
+            disk.label or "-",
+            format_size(disk.size),
+            disk.model or "-",
+            disk.protocol or "-",
+            assessment.status,
+            assessment.reason,
+        )
+    console.print(table)
+
+
+def _assess_disk(disk: DiskInfo, *, allow_builtin_sd: bool) -> DiskAssessment:
+    if not disk.whole:
+        return DiskAssessment(disk, False, "blocked", "not a whole disk")
+    if disk.virtual_or_physical == "Virtual":
+        return DiskAssessment(disk, False, "blocked", "virtual disk")
+    if disk.boot:
+        return DiskAssessment(disk, False, "blocked", "boot disk")
+    if disk.internal:
+        if disk.virtual_or_physical != "Physical":
+            return DiskAssessment(disk, False, "blocked", "internal disk")
+        if disk.is_builtin_sd:
+            if allow_builtin_sd:
+                return DiskAssessment(
+                    disk, True, "allowed", "internal SD reader (--allow-builtin-sd)"
+                )
+            return DiskAssessment(
+                disk,
+                False,
+                "blocked",
+                "internal SD reader; re-run with --allow-builtin-sd",
+            )
+        return DiskAssessment(disk, False, "blocked", "internal disk")
+    if disk.virtual_or_physical != "Physical":
+        detail = disk.virtual_or_physical or "unknown"
+        return DiskAssessment(disk, False, "blocked", f"non-physical disk ({detail})")
+    if not (disk.removable or disk.ejectable or disk.protocol in _REMOVABLE_PROTOCOLS):
+        return DiskAssessment(disk, False, "blocked", "not removable")
+    return DiskAssessment(disk, True, "allowed", "external removable disk")
+
+
 def _whole_identifiers(listing: Mapping[str, object]) -> list[str]:
     entries = listing.get("AllDisksAndPartitions")
     if not isinstance(entries, list):
@@ -101,23 +198,8 @@ def _whole_identifiers(listing: Mapping[str, object]) -> list[str]:
     return identifiers
 
 
-def _parse_disk(info: Mapping[str, object], *, boot_identifier: str, where: str) -> DiskInfo | None:
-    whole = _whole_flag(info, where)
-    internal = _required_bool(info, "Internal", where)
-    virtual_or_physical = _required_string(info, "VirtualOrPhysical", where)
-    if not whole or internal or virtual_or_physical != "Physical":
-        return None
-
+def _parse_disk(info: Mapping[str, object], *, boot_identifier: str, where: str) -> DiskInfo:
     identifier = _required_string(info, "DeviceIdentifier", where)
-    if identifier == boot_identifier:
-        return None
-
-    removable = _optional_bool(info, "RemovableMedia", where)
-    ejectable = _optional_bool(info, "Ejectable", where)
-    protocol = _optional_string(info, "BusProtocol", where) or ""
-    if not (removable or ejectable or protocol in _REMOVABLE_PROTOCOLS):
-        return None
-
     label = _optional_string(info, "VolumeName", where) or ""
     model = _optional_string(info, "MediaName", where) or _optional_string(info, "Model", where)
     return DiskInfo(
@@ -125,12 +207,14 @@ def _parse_disk(info: Mapping[str, object], *, boot_identifier: str, where: str)
         size=_required_size(info, where),
         label=label,
         model=model or "",
-        protocol=protocol,
-        internal=internal,
-        removable=removable,
-        ejectable=ejectable,
-        whole=whole,
+        protocol=_optional_string(info, "BusProtocol", where) or "",
+        internal=_required_bool(info, "Internal", where),
+        removable=_optional_bool(info, "RemovableMedia", where),
+        ejectable=_optional_bool(info, "Ejectable", where),
+        whole=_whole_flag(info, where),
         serial=_optional_string(info, "SerialNumber", where),
+        virtual_or_physical=_required_string(info, "VirtualOrPhysical", where),
+        boot=identifier == boot_identifier,
     )
 
 

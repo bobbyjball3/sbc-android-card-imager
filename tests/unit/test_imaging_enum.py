@@ -9,7 +9,14 @@ import pytest
 from rich.console import Console
 
 from sbc_imager.errors import SafetyError
-from sbc_imager.imaging import DiskInfo, enumerate_disks, render_table
+from sbc_imager.imaging import (
+    DiskInfo,
+    assess_disks,
+    enumerate_disks,
+    normalize_disk_identifier,
+    render_assessment_table,
+    render_table,
+)
 from sbc_imager.runner import CommandResult
 from sbc_imager.sizes import format_size
 from tests.fakes import FakeRunner
@@ -167,6 +174,80 @@ def test_enumerate_disks_when_same_whole_disk_repeated_queries_it_once() -> None
     assert [disk.identifier for disk in disks] == ["disk9"]
     info_commands = [command for command in runner.commands if command[1] == "info"]
     assert info_commands.count(["diskutil", "info", "-plist", "/dev/disk9"]) == 1
+
+
+def test_assess_disks_when_read_without_flag_reports_every_whole_disk_and_reason() -> None:
+    assessments = assess_disks(_runner(MAIN_INFOS))
+    by_id = {assessment.disk.identifier: assessment for assessment in assessments}
+
+    assert list(by_id) == ["disk0", "disk4", "disk9", "disk10", "disk11"]
+    assert (by_id["disk0"].allowed, by_id["disk0"].reason) == (False, "internal disk")
+    assert (by_id["disk4"].allowed, by_id["disk4"].reason) == (False, "virtual disk")
+    assert (by_id["disk9"].allowed, by_id["disk9"].reason) == (
+        True,
+        "external removable disk",
+    )
+    assert (by_id["disk10"].allowed, by_id["disk10"].reason) == (False, "boot disk")
+    assert by_id["disk11"].allowed is False
+    assert "internal SD reader" in by_id["disk11"].reason
+    assert "--allow-builtin-sd" in by_id["disk11"].reason
+
+
+def test_assess_disks_when_allow_builtin_sd_permits_only_the_internal_sd_reader() -> None:
+    assessments = assess_disks(_runner(MAIN_INFOS), allow_builtin_sd=True)
+    by_id = {assessment.disk.identifier: assessment for assessment in assessments}
+
+    assert by_id["disk11"].allowed is True
+    assert by_id["disk11"].reason == "internal SD reader (--allow-builtin-sd)"
+    assert by_id["disk0"].allowed is False
+    assert by_id["disk4"].allowed is False
+    assert by_id["disk10"].allowed is False
+
+
+def test_assess_disks_when_non_physical_internal_disk_never_allows_it() -> None:
+    assessments = assess_disks(
+        _runner(("info-internal.plist",), list_name="list-external-only.plist"),
+        allow_builtin_sd=True,
+    )
+
+    assert [(assessment.allowed, assessment.reason) for assessment in assessments] == [
+        (False, "internal disk")
+    ]
+
+
+@pytest.mark.parametrize("raw", ["disk5", "/dev/disk5", "/dev/rdisk5"])
+def test_normalize_disk_identifier_accepts_disk_and_dev_forms(raw: str) -> None:
+    assert normalize_disk_identifier(raw) == "disk5"
+
+
+@pytest.mark.parametrize(
+    "raw",
+    ["", "rdisk5", "/dev/rdisk", "/dev/disk5s1", "/dev/sda", "/dev/disk5x"],
+)
+def test_normalize_disk_identifier_rejects_unsafe_or_partial_forms(raw: str) -> None:
+    with pytest.raises(SafetyError, match="invalid device"):
+        normalize_disk_identifier(raw)
+
+
+def test_render_assessment_table_when_called_shows_status_and_reason() -> None:
+    assessments = assess_disks(_runner(MAIN_INFOS))
+    output = io.StringIO()
+    console = Console(file=output, width=200, force_terminal=False, color_system=None)
+
+    render_assessment_table(console, assessments)
+
+    rendered = output.getvalue()
+    assert all(
+        fragment in rendered
+        for fragment in (
+            "disk0",
+            "internal disk",
+            "disk4",
+            "virtual disk",
+            "disk11",
+            "internal SD reader",
+        )
+    )
 
 
 def test_render_table_when_serial_present_shows_identity_size_model_protocol_and_serial() -> None:
