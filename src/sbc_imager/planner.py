@@ -16,11 +16,11 @@ from sbc_imager.cannoli import (
 from sbc_imager.config import Manifest
 from sbc_imager.errors import ConfigError
 from sbc_imager.runner import redact_url
+from sbc_imager.sizes import parse_size
 from sbc_imager.sources import ResolvedSource
 from sbc_imager.validation import Destination, Warning, iter_destinations, validate_manifest
 from sbc_imager.validation_destinations import source_relative_path
 from sbc_imager.validation_local import entry_files
-from sbc_imager.validation_sizes import parse_size
 
 MIB = 1024 * 1024
 _REMOTE_TYPES = frozenset({"git", "http", "https", "url"})

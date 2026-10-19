@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from sbc_imager.cannoli import HARD_REQUIRED_BIOS
 from sbc_imager.config import Manifest
+from sbc_imager.sizes import check_image
 from sbc_imager.validation_checks import (
     check_apks,
     check_art,
@@ -21,7 +22,6 @@ from sbc_imager.validation_checks import (
 from sbc_imager.validation_common import Warning, error, tag
 from sbc_imager.validation_destinations import Destination, iter_destinations
 from sbc_imager.validation_exfat import check_destinations
-from sbc_imager.validation_sizes import check_image
 
 __all__ = ["Destination", "Warning", "iter_destinations", "validate_manifest"]
 
