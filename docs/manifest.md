@@ -30,9 +30,10 @@ not.
 ## Path resolution
 
 - The manifest path itself is opened as-is; `~` expands to your home directory.
-- `[[rom]]`, `[[bios]]`, `[[art]]`, `[[apk]]`, and `[[artifact]]` `path` values
-  are local. A relative path resolves against the manifest's directory, `~`
-  expands, and the result is resolved to an absolute path.
+- `[[apk]]` and `[[artifact]]` `path` values are local, as are
+  `[[overlay]]`/`[[shader]]` `path` values without `source`. A relative path
+  resolves against the manifest's directory, `~` expands, and the result is
+  resolved to an absolute path.
 - For `[[overlay]]` and `[[shader]]`, a missing `source` means the `path` is a
   local path and follows the rule above. When `source` is present, `path` is a
   path inside that source's resolved root (or the source's `subdir`); it must be
@@ -61,7 +62,7 @@ errors.
 ## [[source]]
 
 Remote sources may be referenced only by `[[overlay]]` and `[[shader]]` entries.
-ROMs, BIOS files, art, APKs, and generic artifacts must be local.
+APKs and generic artifacts must be local.
 
 | Key | Type | Required | Meaning |
 | --- | --- | --- | --- |
@@ -91,52 +92,11 @@ sources it needs. An unused source produces a warning.
 
 ## Typed entries
 
-### [[rom]]
-
-| Key | Type | Required | Meaning |
-| --- | --- | --- | --- |
-| `platform` | string | yes | Cannoli tag, case-insensitive. |
-| `path` | string | yes | Local file or directory. |
-| `include` | array of strings | no | Glob patterns; defaults to `["**/*"]`. |
-| `exclude` | array of strings | no | Glob patterns removed after inclusion. |
-
-ROM files keep their relative directories. Files marked as junk are skipped with
-a warning: `Thumbs.db`, `desktop.ini`, `.md` files, image files, and `.txt`
-files (except under `PC`). Hidden files and directories are always skipped.
-`PC` files must use a supported shortcut extension: `.steam`, `.steamappid`,
-`.epic`, `.gog`, `.amazon`, `.pcgame`, `.localgameid`, or `.txt`.
-
-Destination: `Cannoli/Roms/<TAG>/<relative-path>`.
-
-### [[bios]]
-
-| Key | Type | Required | Meaning |
-| --- | --- | --- | --- |
-| `platform` | string | yes | Cannoli tag, case-insensitive. |
-| `path` | string | yes | Local file or directory. |
-| `as` | string | no | Rename a single-file entry. |
-
-Destination: `Cannoli/BIOS/<TAG>/`.
-
-Cannoli has hard-required BIOS files for `SATURN`, `PCFX`, `PSP`,
-`INTELLIVISION`, `COLECOVISION`, and `AMIGA`. Declaring a ROM for one of those
-tags without declaring the files produces a `missing-required-bios` warning; see
-[`cannoli-platform-tags.md`](cannoli-platform-tags.md).
-
-### [[art]]
-
-| Key | Type | Required | Meaning |
-| --- | --- | --- | --- |
-| `platform` | string | yes | Cannoli tag, case-insensitive. |
-| `path` | string | yes | Local file or directory. |
-| `include` | array of strings | no | Glob patterns; defaults to `["**/*"]`. |
-| `exclude` | array of strings | no | Glob patterns removed after inclusion. |
-
-Art files must be `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, or `.bmp`. Art whose
-basename does not match a declared ROM basename produces an `art-no-rom`
-warning.
-
-Destination: `Cannoli/Art/<TAG>/<relative-path>`.
+ROMs, BIOS files, and box art are supplied by Cannoli/RomM and are not manifest
+inputs. The directory skeleton still exists on the card, including
+`Cannoli/Roms/<TAG>` for every pinned tag plus top-level `Cannoli/BIOS` and
+`Cannoli/Art`. The retired `[[rom]]`, `[[bios]]`, and `[[art]]` tables are
+rejected with a migration error.
 
 ### [[overlay]]
 
@@ -199,18 +159,18 @@ Errors stop the command with exit code 2 before image bytes are written:
 
 - Unknown top-level keys, unknown keys in a table, wrong value types, missing
   required keys, and duplicate `[[source]].id` values.
-- `source` on a ROM, BIOS, art, APK, or artifact entry (it is an unknown key).
-- Unknown or case-ambiguous platform tags. Tags are normalized to the canonical
-  uppercase form from the pinned Cannoli registry.
+- The retired `[[rom]]`, `[[bios]]`, and `[[art]]` tables; those files are
+  supplied by Cannoli/RomM.
+- `source` on an APK or artifact entry (it is an unknown key).
+- Unknown or case-ambiguous platform tags on `[[overlay]]`. Tags are normalized
+  to the canonical uppercase form from the pinned Cannoli registry.
 - A missing local path, or a symlink/special file in a local typed `path` tree
-  (`[[rom]]`, `[[bios]]`, `[[art]]`, local `[[overlay]]`/`[[shader]]`, `[[apk]]`,
-  or `[[artifact]]`). The typed root itself may not be a symlink; symlinked
-  parent directories are followed. Trees resolved through `[[source]]` (local,
-  git, or URL) are copied as declared and are not scanned for symlinks or
-  special files by validation.
+  (local `[[overlay]]`/`[[shader]]`, `[[apk]]`, or `[[artifact]]`). The typed
+  root itself may not be a symlink; symlinked parent directories are followed.
+  Trees resolved through `[[source]]` (local, git, or URL) are copied as
+  declared and are not scanned for symlinks or special files by validation.
 - An overlay that is not `.png`; a shader file that is not `.glslp` or a local
-  shader directory with no root `.glslp`; an APK that is not `.apk`; art that is
-  not an image; a `PC` ROM file that is not a supported shortcut.
+  shader directory with no root `.glslp`; an APK that is not `.apk`.
 - A typed entry that produces zero files.
 - exFAT-invalid path components: the characters `\ / : * ? " < > |`, control
   characters, a trailing dot or space, the reserved names `CON`, `PRN`, `AUX`,
@@ -224,8 +184,8 @@ Errors stop the command with exit code 2 before image bytes are written:
 
 Warnings are non-fatal unless `plan --strict` is used:
 
-- `art-no-rom`, `junk-rom-file`, `missing-required-bios`, `non-nfc-name`,
-  `artifact-config`, `unused-source`, `overlay-non-png`, and `branch-ref`.
+- `non-nfc-name`, `artifact-config`, `unused-source`, `overlay-non-png`, and
+  `branch-ref`.
 
 ## Size math
 
@@ -295,19 +255,6 @@ size = "auto"
 reserve = "1MiB"
 output = "dist/demo.img"
 
-[[rom]]
-platform = "GBA"
-path = "demo/roms/GBA"
-exclude = ["**/*.sav"]
-
-[[bios]]
-platform = "GBA"
-path = "demo/bios/GBA/gba_bios.bin"
-
-[[art]]
-platform = "GBA"
-path = "demo/art/GBA"
-
 [[overlay]]
 platform = "GBA"
 path = "demo/overlays/GBA/bezel.png"
@@ -363,10 +310,6 @@ platform = "GBA"
 path = "bezel.png"
 source = "overlays"
 as = "gba-bezel.png"
-
-[[rom]]
-platform = "GBA"
-path = "roms/GBA"
 ```
 
 ### HTTPS shader source (valid)
@@ -401,9 +344,8 @@ size = "128GiB"
 reserve = "4GiB"
 output = "dist/pinned.img"
 
-[[rom]]
-platform = "SNES"
+[[artifact]]
+root = "cannoli"
+dest = "Roms/SNES"
 path = "roms/SNES"
-include = ["**/*.sfc", "**/*.smc"]
-exclude = ["**/*.srm"]
 ```

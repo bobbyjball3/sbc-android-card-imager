@@ -141,7 +141,7 @@ def test_readme_when_read_states_the_real_limitations() -> None:
     text = README.read_text(encoding="utf-8").casefold()
 
     assert "no apk installation" in text
-    assert "no rom, bios, or art downloads" in text
+    assert "roms, bios files, and box art are romm-supplied" in text
     assert "no zero-touch first boot" in text
     assert "66 mib" in text
 

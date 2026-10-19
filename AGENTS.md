@@ -86,13 +86,16 @@ Run `task <name>` from the repository root:
 
 ### Manifest conventions
 Manifests are TOML with an `[image]` table and arrays of tables: `[[source]]`,
-`[[rom]]`, `[[bios]]`, `[[art]]`, `[[overlay]]`, `[[shader]]`, `[[apk]]`, and
-`[[artifact]]`. Unknown keys and invalid types are rejected; there is no permissive
-fallback. Relative paths resolve against the manifest directory, and `[image].size`
-supports `auto` or human-readable units (`reserve` likewise). Typed entries map to
-`Cannoli/Roms/<TAG>`, `Cannoli/BIOS/<TAG>`, `Cannoli/Art/<TAG>`, `Cannoli/Overlays/<TAG>`,
-`Cannoli/Shaders/<preset>`, and root `APKs/`; generic artifacts target an explicit root
-and destination. Overlays and shaders may reference a `source` id instead of a local path.
+`[[overlay]]`, `[[shader]]`, `[[apk]]`, and `[[artifact]]`. ROMs, BIOS files, and box
+art are supplied by Cannoli/RomM and are not manifest inputs; the retired `[[rom]]`,
+`[[bios]]`, and `[[art]]` tables fail with a migration error, while the on-card
+directory skeleton is still created. Unknown keys and invalid types are rejected;
+there is no permissive fallback. Relative paths resolve against the manifest directory,
+and `[image].size` supports `auto` or human-readable units (`reserve` likewise). Typed
+entries map to `Cannoli/Overlays/<TAG>`, `Cannoli/Shaders/<preset>`, and root `APKs/`;
+generic artifacts target an explicit root and destination, including the retained
+`Cannoli/Roms/<TAG>`, `Cannoli/BIOS`, and `Cannoli/Art` skeleton. Overlays and shaders
+may reference a `source` id instead of a local path.
 Git sources require a pinned `ref` (commit or tag; branches need `--allow-branch`) and
 HTTP sources require a pinned lowercase `sha256`. The cache lives under the platform cache
 directory, can be overridden with `SBC_IMAGER_CACHE_DIR`, and supports `--offline`.

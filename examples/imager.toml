@@ -5,17 +5,8 @@ size = "auto"
 reserve = "1MiB"
 output = "dist/demo.img"
 
-[[rom]]
-platform = "GBA"
-path = "demo/roms/GBA"
-
-[[bios]]
-platform = "GBA"
-path = "demo/bios/GBA/gba_bios.bin"
-
-[[art]]
-platform = "GBA"
-path = "demo/art/GBA"
+# ROMs, BIOS files, and box art are supplied by Cannoli/RomM; they are not
+# manifest inputs. The card still gets the full Cannoli directory skeleton.
 
 [[overlay]]
 platform = "GBA"

@@ -13,8 +13,9 @@ to a removable card on macOS.
 
 ## What it does
 
-- Reads a manifest describing ROMs, BIOS files, box art, overlays, shaders, APKs,
-  and arbitrary extra artifacts.
+- Reads a manifest describing overlays, shaders, APKs, and arbitrary extra
+  artifacts. ROMs, BIOS files, and box art are supplied by Cannoli/RomM and are
+  not manifest inputs.
 - Pins git refs and checksums HTTPS downloads, caches them content-addressed, and
   supports `--offline` rebuilds.
 - Creates the full Cannoli v1.9.1 layout: all 51 `Cannoli/Roms/<TAG>` folders,
@@ -88,7 +89,7 @@ sudo -E sbc-imager image --image dist/demo.img
 ```
 
 Without `--size`, the demo manifest sizes itself to 67 MiB (1 MiB partition
-offset plus a 66 MiB partition for 830 bytes of content, the 64 MiB overhead,
+offset plus a 66 MiB partition for 592 bytes of content, the 64 MiB overhead,
 and the 1 MiB reserve declared in the example).
 
 ### The 66 MiB minimum
@@ -109,18 +110,6 @@ size = "auto"
 reserve = "1MiB"
 output = "dist/demo.img"
 
-[[rom]]
-platform = "GBA"
-path = "demo/roms/GBA"
-
-[[bios]]
-platform = "GBA"
-path = "demo/bios/GBA/gba_bios.bin"
-
-[[art]]
-platform = "GBA"
-path = "demo/art/GBA"
-
 [[overlay]]
 platform = "GBA"
 path = "demo/overlays/GBA/bezel.png"
@@ -137,6 +126,10 @@ dest = "Manuals"
 path = "demo/manuals/readme.txt"
 ```
 
+ROMs, BIOS files, and box art are not manifest inputs: Cannoli/RomM supplies
+those files on the card. The manifest creates their directory skeleton but does
+not copy or download their contents.
+
 Relative `path`, `output`, and local source `url` values resolve against the
 manifest's directory; `~` expands to your home directory. The bundled
 [`examples/imager.toml`](examples/imager.toml) uses only the placeholder files in
@@ -149,8 +142,8 @@ The image contains a payload tree, not an Android system image:
 
 ```text
 Cannoli/
-  Art/<TAG>/
-  BIOS/<TAG>/
+  Art/
+  BIOS/
   Cheats/<TAG>/
   Config/settings.json      # "{}" marker that preselects the card
   Guides/<TAG>/
@@ -177,9 +170,10 @@ generated data, emulator cores, and app-private data are never included.
   `userdata`, `misc`, or `vbmeta` partitions. It does not install Android.
 - **No APK installation.** APK files are copied to `APKs/` on the card; the tool
   does not run `adb`, install packages, or manage apps.
-- **No ROM, BIOS, or art downloads.** You provide every ROM, BIOS dump, APK, and
-  artwork yourself. Remote sources are supported only for `[[overlay]]` and
-  `[[shader]]`. The repository contains no copyrighted ROMs or BIOS files.
+- **ROMs, BIOS files, and box art are RomM-supplied.** Cannoli/RomM provides
+  those files on the card; this tool does not download or copy them. Remote
+  sources are supported only for `[[overlay]]` and `[[shader]]`. The repository
+  contains no copyrighted ROMs or BIOS files.
 - **No zero-touch first boot.** The card preselects Cannoli as an existing
   install and ships every platform folder, but you still configure emulators,
   cores, and settings on first launch.
@@ -194,18 +188,19 @@ generated data, emulator cores, and app-private data are never included.
 - **Flashing is destructive.** Every byte on the selected card is overwritten.
   Use `--dry-run` first. There is no multi-card batch mode, no compression, and
   no FAT32/ext4 option.
-- **No ROM renaming or multi-disc bundling.** Files keep their relative names and
-  subdirectories; you are responsible for names Cannoli and the emulators expect.
+- **No renaming or multi-disc bundling beyond `as`.** Retained files keep their
+  relative names and subdirectories unless a typed entry declares an `as` rename;
+  you are responsible for names Cannoli and the emulators expect.
 
 ## Sample output
 
 A successful build prints progress on stderr and a summary on stdout:
 
 ```text
-Staged 8 files in /var/folders/.../sbc-build-...
+Staged 5 files in /var/folders/.../sbc-build-...
 Wrote /Users/me/sbc-android-card-imager/dist/demo.img (66MiB)
 Image: /Users/me/sbc-android-card-imager/dist/demo.img
-Size: 66MiB  SHA-256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef  Verified files: 10
+Size: 66MiB  SHA-256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef  Verified files: 7
 ```
 
 `build` also writes `dist/demo.img.report.json` next to the image (and prints
@@ -213,8 +208,8 @@ the same payload with `--json`). Abridged:
 
 ```json
 {
-  "content_bytes": 830,
-  "content_files": 8,
+  "content_bytes": 592,
+  "content_files": 5,
   "image": "/Users/me/sbc-android-card-imager/dist/demo.img",
   "image_bytes": 69206016,
   "offset": 1048576,
@@ -222,8 +217,8 @@ the same payload with `--json`). Abridged:
   "schema_version": 1,
   "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
   "verify": {
-    "actual_files": 10,
-    "expected_files": 10,
+    "actual_files": 7,
+    "expected_files": 7,
     "extra": [],
     "mismatched": [],
     "missing": [],
@@ -237,14 +232,14 @@ the same payload with `--json`). Abridged:
 A successful verification prints:
 
 ```text
-Verification passed: 10 files match the manifest.
+Verification passed: 7 files match the manifest.
 ```
 
 A failure names the offending entries instead:
 
 ```text
 Verification failed:
-  Hash mismatches: Cannoli/Roms/GBA/demo.gba
+  Hash mismatches: Cannoli/Overlays/GBA/bezel.png
 ```
 
 ## Development
