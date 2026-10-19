@@ -6,6 +6,7 @@
 # Global Rules
 ## Git Rules
 ### General Git Rules
+- Both git and the gh cli are configured. **NEVER** do anything destructive without asking even if the current mode is build.
 - **ALWAYS** do your your work from a feature branch - not from main!
 - **ALWAYS** base your your branches on latest main branch - no complex branching strategies
 - **ALWAYS** use [conventional branches](https://conventionalbranch.org/#spec) for your branch names
