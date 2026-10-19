@@ -98,7 +98,7 @@ HARD_REQUIRED_BIOS: Final[dict[str, tuple[str, ...]]] = {
     "PCFX": ("pcfx.rom",),
     "PSP": ("PPSSPP/ppge_atlas.zim",),
     "INTELLIVISION": ("exec.bin", "grom.bin"),
-    "COLECOVISION": ("Databases/msxromdb.xml", "Machines/SharedRoms/MSX.rom"),
+    "COLECOVISION": ("Databases/msxromdb.xml", "Machines/Shared Roms/MSX.rom"),
     "AMIGA": (
         "kick34005.A500",
         "kick40068.A1200",

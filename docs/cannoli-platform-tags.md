@@ -70,5 +70,5 @@ These platforms will not start without the listed BIOS files. Place them under `
 | PCFX | `pcfx.rom` |
 | PSP | `PPSSPP/ppge_atlas.zim` |
 | INTELLIVISION | `exec.bin`, `grom.bin` |
-| COLECOVISION | `Databases/msxromdb.xml`, `Machines/SharedRoms/MSX.rom` |
+| COLECOVISION | `Databases/msxromdb.xml`, `Machines/Shared Roms/MSX.rom` |
 | AMIGA | `kick34005.A500`, `kick40068.A1200`, `kick40060.CD32`, `kick40060.CD32.ext` |

@@ -208,7 +208,7 @@ def test_hard_required_bios_when_loaded_matches_cannoli_contract() -> None:
         "PCFX": ("pcfx.rom",),
         "PSP": ("PPSSPP/ppge_atlas.zim",),
         "INTELLIVISION": ("exec.bin", "grom.bin"),
-        "COLECOVISION": ("Databases/msxromdb.xml", "Machines/SharedRoms/MSX.rom"),
+        "COLECOVISION": ("Databases/msxromdb.xml", "Machines/Shared Roms/MSX.rom"),
         "AMIGA": (
             "kick34005.A500",
             "kick40068.A1200",
