@@ -341,7 +341,7 @@ def test_resolve_github_when_rate_limited_hints_at_github_token(
     assert "GITHUB_TOKEN" in caught.value.hint
 
 
-def test_resolve_github_when_token_is_set_sends_bearer_without_leaking(
+def test_resolve_github_when_token_is_set_sends_bearer_only_to_api_without_leaking(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("GITHUB_TOKEN", "super-secret-token")
@@ -350,8 +350,14 @@ def test_resolve_github_when_token_is_set_sends_bearer_without_leaking(
 
     resolved = resolve_github(_entry(), cache, _client(_handler(seen=seen)))
 
-    assert seen
-    assert all(request.headers["Authorization"] == "Bearer super-secret-token" for request in seen)
+    api_requests = [request for request in seen if request.url.host == "api.github.com"]
+    asset_requests = [request for request in seen if request.url.host != "api.github.com"]
+    assert len(api_requests) == 2
+    assert len(asset_requests) == 1
+    assert all(
+        request.headers["Authorization"] == "Bearer super-secret-token" for request in api_requests
+    )
+    assert all("Authorization" not in request.headers for request in asset_requests)
     assert "super-secret-token" not in str(resolved.metadata)
     assert "super-secret-token" not in _meta_path(cache).read_text(encoding="utf-8")
 

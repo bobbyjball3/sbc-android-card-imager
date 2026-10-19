@@ -86,15 +86,16 @@ def _override_sha256(entry: SourceConfig) -> str | None:
     return value.casefold()
 
 
-def _headers() -> dict[str, str]:
+def _headers(*, authenticated: bool = True) -> dict[str, str]:
     headers = {
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
         "User-Agent": "sbc-imager",
     }
-    token = os.environ.get("GITHUB_TOKEN")
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
+    if authenticated:
+        token = os.environ.get("GITHUB_TOKEN")
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
     return headers
 
 
@@ -261,7 +262,7 @@ def _download(
     try:
         with os.fdopen(descriptor, "wb") as handle:
             try:
-                with client.stream("GET", url, headers=_headers()) as response:
+                with client.stream("GET", url, headers=_headers(authenticated=False)) as response:
                     if response.status_code >= 400:
                         raise _status_error(spec, "asset", url, response.status_code)
                     for chunk in response.iter_bytes(_CHUNK_SIZE):
