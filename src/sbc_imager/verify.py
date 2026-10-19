@@ -25,6 +25,7 @@ from sbc_imager.sources import (
     resolve_http,
     resolve_local,
 )
+from sbc_imager.sources_github import resolve_github
 from sbc_imager.validation import validate_manifest
 
 _SHA_LENGTH = 64
@@ -84,7 +85,7 @@ def _resolve_sources(
     offline: bool,
     allow_branch: bool,
 ) -> dict[str, ResolvedSource]:
-    entries = (*manifest.overlays, *manifest.shaders)
+    entries = (*manifest.overlays, *manifest.shaders, *manifest.apks)
     wanted = {entry.source for entry in entries if isinstance(entry.source, str)}
     resolved: dict[str, ResolvedSource] = {}
     for source in manifest.sources:
@@ -99,10 +100,12 @@ def _resolve_sources(
                 offline=offline,
                 allow_branch=allow_branch,
             )
+        elif kind == "github":
+            resolved[source.id] = resolve_github(source, cache, client, offline=offline)
         elif kind in {"http", "https", "url"}:
             resolved[source.id] = resolve_http(source, cache, client, offline=offline)
         elif kind == "local":
-            path = Path(source.url).expanduser()
+            path = Path(source.url or "").expanduser()
             resolved[source.id] = resolve_local(
                 path if path.is_absolute() else manifest.base_dir / path, source.id
             )

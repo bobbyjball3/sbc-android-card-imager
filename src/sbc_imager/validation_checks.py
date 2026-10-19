@@ -82,19 +82,28 @@ def check_apks(manifest: Manifest) -> int:
     total = 0
     for index, entry in enumerate(manifest.apks):
         where = f"apk[{index}]"
-        check_local(where, entry.path)
-        files = entry_files(entry.path)
-        if entry.path.is_file():
-            name = component(entry.as_, where) if entry.as_ else entry.path.name
+        if entry.source is not None:
+            name = component(entry.as_ or "", where)
+            check_component(name)
+            if PurePosixPath(name).suffix.casefold() != ".apk":
+                error("apk-extension", f"{where} destination {name!r} is not a .apk file")
+            continue
+        path = entry.path
+        if path is None:
+            error("missing-path", f"{where} has no local path")
+        check_local(where, path)
+        files = entry_files(path)
+        if path.is_file():
+            name = component(entry.as_, where) if entry.as_ else path.name
             check_component(name)
             if PurePosixPath(name).suffix.casefold() != ".apk":
                 error("apk-extension", f"{where} destination {name!r} is not a .apk file")
         elif entry.as_ is not None:
             component(entry.as_, where)
-        for path, rel in files:
-            if not entry.path.is_file() and rel.suffix.casefold() != ".apk":
+        for child, rel in files:
+            if not path.is_file() and rel.suffix.casefold() != ".apk":
                 error("apk-extension", f"{where} file {rel.as_posix()} is not a .apk file")
-            total += path.stat().st_size
+            total += child.stat().st_size
         if not files:
             error("empty-entry", f"{where} produces no files")
     return total
@@ -130,8 +139,13 @@ def check_sources(manifest: Manifest) -> tuple[dict[str, int], set[str]]:
         missing = [name for name in ("license", "attribution") if not getattr(source, name)]
         if missing:
             error("source-metadata", f"source[{index}] '{source.id}' requires {', '.join(missing)}")
-    for kind, entries in (("overlay", manifest.overlays), ("shader", manifest.shaders)):
-        for index, entry in enumerate(entries):
+    entries = (
+        ("overlay", manifest.overlays),
+        ("shader", manifest.shaders),
+        ("apk", manifest.apks),
+    )
+    for kind, typed in entries:
+        for index, entry in enumerate(typed):
             if entry.source is None:
                 continue
             if entry.source not in sources:

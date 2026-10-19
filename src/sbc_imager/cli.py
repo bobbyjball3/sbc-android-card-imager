@@ -33,6 +33,7 @@ from sbc_imager.planner import (
 from sbc_imager.runner import SubprocessRunner
 from sbc_imager.sizes import format_size
 from sbc_imager.sources import ResolvedSource, SourceCache, resolve_git, resolve_http, resolve_local
+from sbc_imager.sources_github import resolve_github
 from sbc_imager.validation import Warning
 
 
@@ -88,7 +89,7 @@ def _resolve_sources(
     allow_branch: bool,
 ) -> dict[str, ResolvedSource]:
     cache, runner = SourceCache(), SubprocessRunner()
-    entries = (*manifest.overlays, *manifest.shaders)
+    entries = (*manifest.overlays, *manifest.shaders, *manifest.apks)
     wanted = (
         {entry.source for entry in entries if entry.source is not None}
         if referenced_only
@@ -103,10 +104,12 @@ def _resolve_sources(
             resolved[source.id] = resolve_git(
                 source, cache, runner, offline=offline, allow_branch=allow_branch
             )
+        elif kind == "github":
+            resolved[source.id] = resolve_github(source, cache, client, offline=offline)
         elif kind in {"http", "https", "url"}:
             resolved[source.id] = resolve_http(source, cache, client, offline=offline)
         elif kind == "local":
-            path = Path(source.url).expanduser()
+            path = Path(source.url or "").expanduser()
             local = path if path.is_absolute() else manifest.base_dir / path
             resolved[source.id] = resolve_local(local, source.id)
         else:

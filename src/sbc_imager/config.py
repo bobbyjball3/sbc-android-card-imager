@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -15,11 +16,24 @@ type _Table = Mapping[str, object]
 _KEYS: Final[dict[str, frozenset[str]]] = {
     "image": frozenset({"name", "label", "size", "reserve", "output"}),
     "source": frozenset(
-        {"id", "type", "url", "ref", "subdir", "filename", "sha256", "license", "attribution"}
+        {
+            "id",
+            "type",
+            "url",
+            "ref",
+            "subdir",
+            "filename",
+            "sha256",
+            "license",
+            "attribution",
+            "repo",
+            "tag",
+            "asset",
+        }
     ),
     "overlay": frozenset({"platform", "path", "source", "as"}),
     "shader": frozenset({"path", "source", "as"}),
-    "apk": frozenset({"path", "as"}),
+    "apk": frozenset({"path", "source", "as"}),
     "artifact": frozenset({"root", "dest", "path", "as"}),
 }
 
@@ -51,13 +65,16 @@ class ImageConfig:
 class SourceConfig:
     id: str
     type: str
-    url: str
+    url: str | None
     ref: str | None
     subdir: str | None
     filename: str | None
     sha256: str | None
     license: str | None
     attribution: str | None
+    repo: str | None = None
+    tag: str | None = None
+    asset: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,7 +94,8 @@ class ShaderEntry:
 
 @dataclass(frozen=True, slots=True)
 class ApkEntry:
-    path: Path
+    path: Path | None
+    source: str | None
     as_: str | None
 
 
@@ -193,16 +211,63 @@ class _ManifestParser:
 
     def _source(self, table: _Table, index: int) -> SourceConfig:
         where = f"source[{index}]"
+        entry_id = self._required_text(table, "id", where)
+        kind = self._required_text(table, "type", where)
+        url = self._text(table, "url", where)
+        ref = self._text(table, "ref", where)
+        subdir = self._text(table, "subdir", where)
+        filename = self._text(table, "filename", where)
+        repo = self._text(table, "repo", where)
+        tag = self._text(table, "tag", where)
+        asset = self._text(table, "asset", where)
+        if kind.casefold() == "github":
+            for key, value in (
+                ("url", url),
+                ("ref", ref),
+                ("subdir", subdir),
+                ("filename", filename),
+            ):
+                if value is not None:
+                    _fail(
+                        f"github source '{entry_id}' does not accept '{key}' "
+                        f"in manifest {self.path}"
+                    )
+            if not repo:
+                _fail(f"github source '{entry_id}' is missing required key 'repo'")
+            if re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo) is None:
+                _fail(
+                    f"github source '{entry_id}' repo must be 'owner/name' in manifest {self.path}"
+                )
+            if not tag:
+                _fail(f"github source '{entry_id}' is missing required key 'tag'")
+            if not asset:
+                _fail(f"github source '{entry_id}' is missing required key 'asset'")
+            if asset in {".", ".."} or any(char in asset for char in "/\\\x00"):
+                _fail(
+                    f"github source '{entry_id}' asset must be a plain file name "
+                    f"in manifest {self.path}"
+                )
+        else:
+            if any(value is not None for value in (repo, tag, asset)):
+                _fail(
+                    f"source '{entry_id}' of type '{kind}' does not accept "
+                    f"repo/tag/asset in manifest {self.path}"
+                )
+            if url is None:
+                _fail(f"{where} is missing required key 'url' in manifest {self.path}")
         return SourceConfig(
-            self._required_text(table, "id", where),
-            self._required_text(table, "type", where),
-            self._required_text(table, "url", where),
-            self._text(table, "ref", where),
-            self._text(table, "subdir", where),
-            self._text(table, "filename", where),
+            entry_id,
+            kind,
+            url,
+            ref,
+            subdir,
+            filename,
             self._text(table, "sha256", where),
             self._text(table, "license", where),
             self._text(table, "attribution", where),
+            repo,
+            tag,
+            asset,
         )
 
     def _overlay(self, table: _Table, index: int) -> OverlayEntry:
@@ -224,7 +289,19 @@ class _ManifestParser:
 
     def _apk(self, table: _Table, index: int) -> ApkEntry:
         where = f"apk[{index}]"
-        return ApkEntry(self._local_path(table, "path", where), self._text(table, "as", where))
+        source = self._text(table, "source", where)
+        if source is not None:
+            if self._text(table, "path", where) is not None:
+                _fail(f"{where} cannot set both 'path' and 'source' in manifest {self.path}")
+            as_ = self._required_text(table, "as", where)
+            if not as_:
+                _fail(f"{where} requires a non-empty 'as' in manifest {self.path}")
+            return ApkEntry(None, source, as_)
+        return ApkEntry(
+            self._local_path(table, "path", where),
+            None,
+            self._text(table, "as", where),
+        )
 
     def _artifact(self, table: _Table, index: int) -> ArtifactEntry:
         where = f"artifact[{index}]"

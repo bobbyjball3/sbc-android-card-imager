@@ -86,7 +86,7 @@ class _HttpSpec:
 def _http_spec(entry: SourceConfig) -> _HttpSpec:
     if entry.type != "url":
         raise ConfigError(f"source '{entry.id}' is not a url source")
-    url = entry.url.strip()
+    url = (entry.url or "").strip()
     parts = urlsplit(url)
     if parts.scheme not in {"http", "https"} or not parts.netloc:
         raise ConfigError(f"http source '{entry.id}' requires an http(s) url with a host")

@@ -156,6 +156,7 @@ def test_load_manifest_when_typed_path_parent_is_symlink_allows(
     manifest = load_manifest(manifest_path)
 
     assert manifest.apks[0].path == (real / "apps" / "demo.apk").resolve()
+    assert manifest.apks[0].path is not None
     assert not manifest.apks[0].path.is_symlink()
 
 
@@ -187,3 +188,147 @@ def test_load_manifest_when_retired_table_is_present_raises(
 
     assert message in caught.value.message
     assert str(manifest_path) in caught.value.message
+
+
+def _write(tmp_path: Path, body: str) -> Path:
+    path = tmp_path / "imager.toml"
+    path.write_text(body, encoding="utf-8")
+    return path
+
+
+def test_load_manifest_when_github_source_parses_without_url(tmp_path: Path) -> None:
+    path = _write(
+        tmp_path,
+        '[[source]]\nid = "obtainium"\ntype = "github"\n'
+        'repo = "ImranR98/Obtainium"\ntag = "v1.7.1"\n'
+        'asset = "app-arm64-v8a-release.apk"\n',
+    )
+
+    manifest = load_manifest(path)
+
+    source = manifest.sources[0]
+    assert source.type == "github"
+    assert source.url is None
+    assert source.repo == "ImranR98/Obtainium"
+    assert source.tag == "v1.7.1"
+    assert source.asset == "app-arm64-v8a-release.apk"
+    assert source.sha256 is None
+    assert source.license is None
+    assert source.attribution is None
+
+
+@pytest.mark.parametrize("key", ["repo", "tag", "asset"])
+def test_load_manifest_when_github_source_missing_required_key_raises(
+    tmp_path: Path, key: str
+) -> None:
+    values = {
+        "repo": 'repo = "Owner/Name"\n',
+        "tag": 'tag = "v1"\n',
+        "asset": 'asset = "app.apk"\n',
+    }
+    body = '[[source]]\nid = "s"\ntype = "github"\n' + "".join(
+        value for name, value in values.items() if name != key
+    )
+    path = _write(tmp_path, body)
+
+    with pytest.raises(ConfigError) as caught:
+        load_manifest(path)
+
+    assert key in caught.value.message
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("url", '"https://example.com/app.apk"'),
+        ("ref", '"v1"'),
+        ("subdir", '"nested"'),
+        ("filename", '"app.apk"'),
+    ],
+)
+def test_load_manifest_when_github_source_has_unsupported_key_raises(
+    tmp_path: Path, key: str, value: str
+) -> None:
+    path = _write(
+        tmp_path,
+        '[[source]]\nid = "s"\ntype = "github"\n'
+        'repo = "Owner/Name"\ntag = "v1"\nasset = "app.apk"\n'
+        f"{key} = {value}\n",
+    )
+
+    with pytest.raises(ConfigError) as caught:
+        load_manifest(path)
+
+    assert key in caught.value.message
+
+
+@pytest.mark.parametrize("key", ["repo", "tag", "asset"])
+def test_load_manifest_when_non_github_source_has_github_key_raises(
+    tmp_path: Path, key: str
+) -> None:
+    values = {
+        "repo": 'repo = "Owner/Name"\n',
+        "tag": 'tag = "v1"\n',
+        "asset": 'asset = "app.apk"\n',
+    }
+    path = _write(
+        tmp_path,
+        '[[source]]\nid = "s"\ntype = "url"\nurl = "https://example.com/app.apk"\n' + values[key],
+    )
+
+    with pytest.raises(ConfigError) as caught:
+        load_manifest(path)
+
+    assert key in caught.value.message
+
+
+@pytest.mark.parametrize("asset", ["../escape.apk", "nested/app.apk", "bad\\name.apk"])
+def test_load_manifest_when_github_asset_is_not_a_plain_name_raises(
+    tmp_path: Path, asset: str
+) -> None:
+    path = _write(
+        tmp_path,
+        '[[source]]\nid = "s"\ntype = "github"\n'
+        'repo = "Owner/Name"\ntag = "v1"\n'
+        f"asset = '{asset}'\n",
+    )
+
+    with pytest.raises(ConfigError) as caught:
+        load_manifest(path)
+
+    assert "asset" in caught.value.message
+
+
+def test_load_manifest_when_apk_source_parses_without_path(tmp_path: Path) -> None:
+    path = _write(
+        tmp_path,
+        '[[apk]]\nsource = "obtainium"\nas = "Obtainium.apk"\n',
+    )
+
+    manifest = load_manifest(path)
+
+    assert manifest.apks[0].path is None
+    assert manifest.apks[0].source == "obtainium"
+    assert manifest.apks[0].as_ == "Obtainium.apk"
+
+
+def test_load_manifest_when_apk_has_source_and_path_raises(tmp_path: Path) -> None:
+    path = _write(
+        tmp_path,
+        '[[apk]]\nsource = "obtainium"\npath = "app.apk"\nas = "Obtainium.apk"\n',
+    )
+
+    with pytest.raises(ConfigError) as caught:
+        load_manifest(path)
+
+    assert "path" in caught.value.message
+    assert "source" in caught.value.message
+
+
+def test_load_manifest_when_apk_source_has_no_as_raises(tmp_path: Path) -> None:
+    path = _write(tmp_path, '[[apk]]\nsource = "obtainium"\n')
+
+    with pytest.raises(ConfigError) as caught:
+        load_manifest(path)
+
+    assert "as" in caught.value.message

@@ -313,3 +313,73 @@ def _bare_repo(tmp_path: Path) -> tuple[Path, str]:
     bare = tmp_path / "repo.git"
     _git(tmp_path, "clone", "--bare", "-q", str(work), str(bare))
     return bare, commit
+
+
+GITHUB_APK = """
+[image]
+name = "obtainium"
+size = "auto"
+reserve = "1MiB"
+output = "dist/obtainium.img"
+
+[[source]]
+id = "obtainium"
+type = "github"
+repo = "ImranR98/Obtainium"
+tag = "v1.7.1"
+asset = "app-arm64-v8a-release.apk"
+
+[[apk]]
+source = "obtainium"
+as = "Obtainium.apk"
+"""
+
+
+def test_plan_when_github_source_resolves_apk_plans_apks_destination(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sbc_imager.sources import ResolvedSource
+
+    apk = _touch(tmp_path / "cache" / "Obtainium.apk", b"obtainium-apk")
+    manifest = _manifest(tmp_path, GITHUB_APK)
+    calls: list[str] = []
+
+    from sbc_imager.config import SourceConfig
+
+    def fake_resolve(
+        entry: SourceConfig,
+        cache: object,
+        client: object,
+        *,
+        offline: bool = False,
+    ) -> ResolvedSource:
+        del cache, client, offline
+        source_id = entry.id
+        calls.append(source_id)
+        return ResolvedSource(
+            id=source_id,
+            root=apk,
+            kind="github",
+            metadata={
+                "repo": "ImranR98/Obtainium",
+                "tag": "v1.7.1",
+                "asset": "app-arm64-v8a-release.apk",
+                "sha256": "0" * 64,
+                "size": str(apk.stat().st_size),
+                "license": "GPL-3.0",
+                "attribution": "ImranR98/Obtainium",
+                "release_url": "https://github.com/ImranR98/Obtainium/releases/tag/v1.7.1",
+            },
+        )
+
+    monkeypatch.setattr("sbc_imager.cli.resolve_github", fake_resolve)
+
+    result = runner.invoke(app, ["plan", "--manifest", str(manifest), "--json"])
+
+    assert result.exit_code == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert [entry["dest"] for entry in payload["entries"]] == ["APKs/Obtainium.apk"]
+    assert payload["entries"][0]["kind"] == "apk"
+    assert payload["entries"][0]["source"] == "obtainium"
+    assert [source["type"] for source in payload["sources"]] == ["github"]
+    assert calls == ["obtainium"]

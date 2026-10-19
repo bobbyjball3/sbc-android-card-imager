@@ -40,7 +40,7 @@ class _GitSpec:
 def _git_spec(entry: SourceConfig, cache: SourceCache) -> _GitSpec:
     if entry.type != "git":
         raise ConfigError(f"source '{entry.id}' is not a git source")
-    url = entry.url.strip()
+    url = (entry.url or "").strip()
     if not url:
         raise ConfigError(f"git source '{entry.id}' requires a non-empty url")
     ref = (entry.ref or "").strip()

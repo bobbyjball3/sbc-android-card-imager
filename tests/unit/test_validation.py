@@ -671,3 +671,53 @@ def test_iter_destinations_when_artifact_uses_root_prefix(
     assert [destination.dest for destination in iter_destinations(manifest)] == [
         PurePosixPath(expected)
     ]
+
+
+def test_validate_manifest_when_apk_source_is_referenced_no_unused_warning(tmp_path: Path) -> None:
+    manifest = _manifest(
+        tmp_path,
+        '[[source]]\nid = "obtainium"\ntype = "github"\n'
+        'repo = "ImranR98/Obtainium"\ntag = "v1.7.1"\n'
+        'asset = "app-arm64-v8a-release.apk"\n\n'
+        '[[apk]]\nsource = "obtainium"\nas = "Obtainium.apk"\n',
+    )
+
+    assert validate_manifest(manifest) == []
+
+
+def test_validate_manifest_when_apk_source_is_unknown_raises(tmp_path: Path) -> None:
+    manifest = _manifest(
+        tmp_path,
+        '[[apk]]\nsource = "nope"\nas = "Obtainium.apk"\n',
+    )
+
+    error = _assert_error(manifest, "unknown-source")
+
+    assert "nope" in error.message
+
+
+def test_validate_manifest_when_apk_source_destination_is_not_apk_raises(tmp_path: Path) -> None:
+    manifest = _manifest(
+        tmp_path,
+        '[[source]]\nid = "obtainium"\ntype = "github"\n'
+        'repo = "ImranR98/Obtainium"\ntag = "v1.7.1"\n'
+        'asset = "app-arm64-v8a-release.apk"\n\n'
+        '[[apk]]\nsource = "obtainium"\nas = "Obtainium.zip"\n',
+    )
+
+    _assert_error(manifest, "apk-extension")
+
+
+def test_iter_destinations_when_apk_source_yields_apks_destination(tmp_path: Path) -> None:
+    manifest = _manifest(
+        tmp_path,
+        '[[apk]]\nsource = "obtainium"\nas = "Obtainium.apk"\n',
+    )
+
+    destinations = list(iter_destinations(manifest))
+
+    assert [destination.dest for destination in destinations] == [
+        PurePosixPath("APKs/Obtainium.apk")
+    ]
+    assert destinations[0].kind == "apk"
+    assert destinations[0].src is None

@@ -361,3 +361,92 @@ def test_build_plan_when_local_file_sizes_are_summed(tmp_path: Path) -> None:
 
     assert plan.content_bytes == 8
     assert [entry.size for entry in plan.entries] == [3, 5]
+
+
+GITHUB_APK = """
+[image]
+name = "obtainium"
+size = "auto"
+reserve = "1MiB"
+
+[[source]]
+id = "obtainium"
+type = "github"
+repo = "ImranR98/Obtainium"
+tag = "v1.7.1"
+asset = "app-arm64-v8a-release.apk"
+
+[[apk]]
+source = "obtainium"
+as = "Obtainium.apk"
+"""
+
+
+def _github_resolved(root: Path) -> dict[str, ResolvedSource]:
+    return {
+        "obtainium": ResolvedSource(
+            id="obtainium",
+            root=root,
+            kind="github",
+            metadata={
+                "repo": "ImranR98/Obtainium",
+                "tag": "v1.7.1",
+                "asset": "app-arm64-v8a-release.apk",
+                "sha256": "04dfd02c56dae8d5271d2d402977e1b07c8eeffb313df054a13e71b75b8b8a26",
+                "size": "5",
+                "license": "GPL-3.0",
+                "attribution": "ImranR98/Obtainium "
+                "(https://github.com/ImranR98/Obtainium/releases/tag/v1.7.1)",
+                "release_url": "https://github.com/ImranR98/Obtainium/releases/tag/v1.7.1",
+            },
+        )
+    }
+
+
+def test_build_plan_when_apk_source_is_a_file_plans_apks_destination(tmp_path: Path) -> None:
+    source = _touch(tmp_path / "cache" / "Obtainium.apk", b"apk!!")
+    manifest = _manifest(tmp_path, GITHUB_APK)
+
+    plan = build_plan(manifest, _github_resolved(source))
+
+    assert [entry.dest for entry in plan.entries] == [PurePosixPath("APKs/Obtainium.apk")]
+    assert plan.entries[0].kind == "apk"
+    assert plan.entries[0].src == source
+    assert plan.entries[0].size == 5
+    assert plan.entries[0].source_id == "obtainium"
+    assert plan.content_bytes == 5
+
+
+def test_build_plan_when_apk_source_is_a_directory_raises(tmp_path: Path) -> None:
+    root = tmp_path / "cache"
+    (root / "Obtainium.apk").parent.mkdir(parents=True)
+    (root / "Obtainium.apk").write_bytes(b"apk")
+    manifest = _manifest(tmp_path, GITHUB_APK)
+
+    with pytest.raises(ConfigError, match="apk-source-directory"):
+        build_plan(manifest, _github_resolved(root))
+
+
+def test_build_plan_when_apk_source_is_not_resolved_raises(tmp_path: Path) -> None:
+    manifest = _manifest(tmp_path, GITHUB_APK)
+
+    with pytest.raises(ConfigError, match="missing-source-resolution"):
+        build_plan(manifest, {})
+
+
+def test_build_plan_when_github_credits_include_release_provenance(tmp_path: Path) -> None:
+    source = _touch(tmp_path / "cache" / "Obtainium.apk", b"apk!!")
+    manifest = _manifest(tmp_path, GITHUB_APK)
+
+    plan = build_plan(manifest, _github_resolved(source))
+
+    credits = plan.credits_marker.content
+    assert "obtainium" in credits
+    assert "ImranR98/Obtainium" in credits
+    assert "v1.7.1" in credits
+    assert "app-arm64-v8a-release.apk" in credits
+    assert "04dfd02c56dae8d5271d2d402977e1b07c8eeffb313df054a13e71b75b8b8a26" in credits
+    assert "GPL-3.0" in credits
+    release = "https://github.com/ImranR98/Obtainium/releases/tag/v1.7.1"
+    assert f"ImranR98/Obtainium ({release})" in credits
+    assert release in credits
