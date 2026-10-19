@@ -157,3 +157,46 @@ def run_assembler(
         return runner.stream(args, on_line=on_line)
     except OSError as error:
         raise AssemblerError(f"docker is not available: {error}", hint=DOCKER_HINT) from error
+
+
+def verify_image(
+    runner: Runner,
+    tag: str,
+    image_path: Path,
+    out_dir: Path,
+    name: str,
+    *,
+    on_line: Callable[[str], None] = print,
+) -> int:
+    """Verify an existing image in the container, streaming logs and returning its exit code."""
+    _validate_tag(tag)
+    image = Path(image_path).resolve()
+    if not image.is_file():
+        raise AssemblerError(f"image does not exist: {image}")
+    output = Path(out_dir).resolve()
+    output.mkdir(parents=True, exist_ok=True)
+    args = [
+        "docker",
+        "run",
+        "--rm",
+        "--privileged",
+        "--network",
+        "none",
+        "-v",
+        f"{image.parent}:/image:ro",
+        "-v",
+        f"{output}:/out",
+        tag,
+        "python",
+        "-m",
+        "sbc_imager.assembler",
+        "verify",
+        "--image",
+        f"/image/{name}",
+        "--out",
+        "/out/tree.json",
+    ]
+    try:
+        return runner.stream(args, on_line=on_line)
+    except OSError as error:
+        raise AssemblerError(f"docker is not available: {error}", hint=DOCKER_HINT) from error

@@ -7,10 +7,11 @@ import os
 import re
 import shutil
 import sys
+import tempfile
 from collections.abc import Callable
 from pathlib import Path
 
-from sbc_imager import fs, mbr
+from sbc_imager import assembler_verify, fs, mbr
 from sbc_imager.assembler_report import (
     SCHEMA_VERSION,
     Report,
@@ -198,6 +199,10 @@ def _parser() -> argparse.ArgumentParser:
     assemble_parser.add_argument("--out", type=Path, required=True)
     assemble_parser.add_argument("--work", type=Path, required=True)
     assemble_parser.add_argument("--label", help="override the exFAT volume label")
+    verify_parser = commands.add_parser("verify", help="verify an existing image")
+    verify_parser.add_argument("--image", type=Path, required=True)
+    verify_parser.add_argument("--out", type=Path, required=True)
+    verify_parser.add_argument("--work", type=Path, help="scratch directory")
     return parser
 
 
@@ -209,6 +214,18 @@ def main(argv: list[str] | None = None) -> int:
         if args.preflight:
             preflight(SubprocessRunner())
             print("preflight ok: loop devices, mkfs.exfat, fsck.exfat, and exfat are available")
+            return 0
+        if args.command == "verify":
+            if args.work is None:
+                with tempfile.TemporaryDirectory(prefix="sbc-verify-") as scratch:
+                    tree = assembler_verify.verify_image(
+                        args.image, args.out, Path(scratch), SubprocessRunner()
+                    )
+            else:
+                tree = assembler_verify.verify_image(
+                    args.image, args.out, args.work, SubprocessRunner()
+                )
+            print(f"verified {len(tree)} files from {args.image}")
             return 0
         if args.command != "assemble":
             parser.print_help()

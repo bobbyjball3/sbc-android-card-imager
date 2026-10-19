@@ -18,6 +18,7 @@ from rich.table import Table
 
 from sbc_imager import __version__
 from sbc_imager.cannoli import PLATFORM_TAGS
+from sbc_imager.cli_verify import register as register_verify
 from sbc_imager.config import Manifest, load_manifest
 from sbc_imager.errors import ConfigError, SbcImagerError
 from sbc_imager.planner import BuildPlan, build_plan, plan_payload, source_rows
@@ -281,13 +282,9 @@ def build(ctx: typer.Context) -> None:
 
 @app.command()
 @_handle_errors
-def verify(ctx: typer.Context) -> None:
-    """Verify a built image against a manifest (not implemented yet)."""
-    _not_implemented("verify", "todo 16")
-
-
-@app.command()
-@_handle_errors
 def image(ctx: typer.Context) -> None:
     """Flash a verified image to a removable card (not implemented yet)."""
     _not_implemented("image", "todo 21")
+
+
+register_verify(app, _handle_errors)

@@ -5,7 +5,13 @@ from pathlib import Path
 
 import pytest
 
-from sbc_imager.container import DEFAULT_TAG, ensure_container, preflight, run_assembler
+from sbc_imager.container import (
+    DEFAULT_TAG,
+    ensure_container,
+    preflight,
+    run_assembler,
+    verify_image,
+)
 from sbc_imager.errors import AssemblerError, CommandError
 from sbc_imager.runner import CommandResult
 from tests.fakes import FakeRunner
@@ -312,3 +318,60 @@ def test_container_operations_when_tag_is_latest_are_refused(function: str, tmp_
             )
 
     assert runner.calls == []
+
+
+def test_verify_image_streams_exact_read_only_command(tmp_path: Path) -> None:
+    image = tmp_path / "card.img"
+    image.write_bytes(b"image")
+    out_dir = tmp_path / "out"
+    lines = ["verified 2 files from /image/card.img"]
+    runner = FakeRunner(lines=lines)
+
+    seen: list[str] = []
+    returncode = verify_image(
+        runner,
+        DEFAULT_TAG,
+        image,
+        out_dir,
+        "card.img",
+        on_line=seen.append,
+    )
+
+    assert returncode == 0
+    assert runner.commands == [
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--privileged",
+            "--network",
+            "none",
+            "-v",
+            f"{tmp_path.resolve()}:/image:ro",
+            "-v",
+            f"{out_dir.resolve()}:/out",
+            DEFAULT_TAG,
+            "python",
+            "-m",
+            "sbc_imager.assembler",
+            "verify",
+            "--image",
+            "/image/card.img",
+            "--out",
+            "/out/tree.json",
+        ]
+    ]
+    assert runner.calls[0].kind == "stream"
+    assert seen == lines
+    assert out_dir.is_dir()
+
+
+def test_verify_image_when_container_exits_nonzero_propagates(tmp_path: Path) -> None:
+    image = tmp_path / "card.img"
+    image.write_bytes(b"image")
+    runner = FakeRunner(returncode=9)
+
+    with pytest.raises(CommandError) as caught:
+        verify_image(runner, DEFAULT_TAG, image, tmp_path / "out", "card.img")
+
+    assert caught.value.returncode == 9
