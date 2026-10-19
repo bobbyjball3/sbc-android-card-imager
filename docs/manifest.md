@@ -19,7 +19,7 @@ All commands accept the global `--verbose`/`-v` and `--help` options.
 | `sbc-imager platforms` | List all 51 Cannoli tags. | `--json` |
 | `sbc-imager plan` | Resolve sources, validate, and print the planned tree and sizes. | `--manifest PATH`, `--offline`, `--strict`, `--json`, `--allow-branch` |
 | `sbc-imager fetch` | Populate the cache from every declared source. | `--manifest PATH`, `--offline`, `--json`, `--allow-branch` |
-| `sbc-imager build` | Fetch, stage, assemble, verify, and atomically publish an image. | `--manifest PATH`, `--output PATH`, `--size SIZE`, `--reserve SIZE`, `--device DEVICE`, `--expand`, `--allow-builtin-sd`, `--offline`, `--force`, `--keep-work`, `--allow-branch`, `--json` |
+| `sbc-imager build` | Fetch, stage, assemble, verify, and atomically publish an image. | `--manifest PATH`, `--output PATH`, `--size SIZE`, `--reserve SIZE`, `--device DEVICE`, `--expand`, `--allow-builtin-sd`, `--progress MODE`, `--offline`, `--force`, `--keep-work`, `--allow-branch`, `--json` |
 | `sbc-imager verify` | Re-verify an image tree against the manifest. | `--image PATH`, `--manifest PATH`, `--offline`, `--allow-branch`, `--json` |
 | `sbc-imager image` | List disk targets or flash a verified image on macOS. | `--image PATH`, `--list`, `--device DEVICE`, `--allow-builtin-sd`, `--dry-run` |
 
@@ -271,6 +271,12 @@ partition = image - 1 MiB
 same assessed safe-disk list as `image`; `--allow-builtin-sd` is required for an
 internal SD reader. Build reads only disk geometry and never writes the card.
 The expanded size overrides `[image].size` and is not affected by `reserve`.
+
+`build --progress` controls phase output on stderr: `auto` (default; human on a
+TTY, otherwise off), `human`, `json`, or `none`. Known counts show as
+`current/total`; long phases show their phase and elapsed time. In `json` mode
+stderr is newline-delimited JSON with `event: "progress"` or `event: "log"`.
+`--json` keeps the machine-readable report on stdout pure.
 
 The 64 MiB overhead is a floor, so a tiny fixture needs at least a 66 MiB pinned
 image: 1 MiB offset + 64 MiB overhead + content. A 64 MiB image cannot hold the

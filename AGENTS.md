@@ -158,6 +158,15 @@ is the image minus the 1 MiB MBR offset. The host image is sparse, but flashing
 still writes the full logical size. Build reads disk geometry only; it does not
 require root, unmount, or write the device.
 
+### Progress reporting
+The shared reporter in `progress.py` emits phase/count events to stderr. `build`
+supports `--progress auto|human|json|none`; `auto` is human on a TTY and off
+otherwise. In `json` mode stderr is newline-delimited JSON with `event` set to
+`progress` or `log`. The assembler container emits `SBC_PROGRESS` JSON lines;
+`build` parses them, forwards them to the reporter, and keeps them out of normal
+logs. Keep stdout pure for `--json`. Rebuild the assembler image after changing
+assembler progress code so the container emits the new events.
+
 ### Testing strategy
 Write tests first. `task test` runs the rootless unit suite, which uses the fake
 `Runner`/`SourceCache` seams and temporary directories instead of real subprocesses or

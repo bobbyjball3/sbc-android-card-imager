@@ -128,6 +128,27 @@ sudo -E uv run sbc-imager image \
   --device /dev/disk5 --allow-builtin-sd
 ```
 
+### Progress output
+
+`build` reports phase progress on stderr: source resolution, staging, container
+preparation, assembly phases, verification, and publication. Known counts show
+as `current/total`; long phases show a phase line and elapsed time when they
+finish.
+
+```shell
+uv run sbc-imager build --manifest examples/rg477m/rg477m.toml --progress human
+```
+
+`--progress` accepts `auto` (default; human on a TTY, otherwise off), `human`,
+`json`, or `none`. In `json` mode stderr is newline-delimited JSON with
+`event: "progress"` or `event: "log"`. `--json` still keeps the
+machine-readable report on stdout pure; progress goes to stderr. Rebuild the
+assembler container after upgrading so the in-container phases are emitted:
+
+```shell
+task container
+```
+
 Without `--size`, the demo manifest sizes itself to 67 MiB (1 MiB partition
 offset plus a 66 MiB partition for 592 bytes of content, the 64 MiB overhead,
 and the 1 MiB reserve declared in the example).
