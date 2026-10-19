@@ -8,7 +8,6 @@ import re
 import shutil
 import sys
 from collections.abc import Callable
-from contextlib import suppress
 from pathlib import Path
 
 from sbc_imager import fs, mbr
@@ -23,8 +22,10 @@ from sbc_imager.assembler_report import (
     validate_label,
 )
 from sbc_imager.assembler_steps import (
+    MountState,
     attach_loop,
     check_filesystem,
+    cleanup,
     detach_loop,
     make_filesystem,
     mount_filesystem,
@@ -92,6 +93,7 @@ def assemble(
 
     loop: str | None = None
     mounted = False
+    failure: BaseException | None = None
     try:
         loop = attach_loop(runner, image, plan.partition_offset_bytes, plan.partition_bytes)
         make_filesystem(runner, effective_label, loop)
@@ -130,17 +132,27 @@ def assemble(
         loop = None
         _publish(image, Path(out_path))
         return report
+    except BaseException as exc:
+        failure = exc
+        raise
     finally:
-        if mounted:
-            with suppress(AssemblerError):
-                unmount(runner, mountpoint)
-        if loop is not None:
-            with suppress(AssemblerError):
-                detach_loop(runner, loop)
+        try:
+            cleanup(runner, MountState(mountpoint, loop, mounted))
+        except AssemblerError as cleanup_error:
+            if failure is not None:
+                raise cleanup_error from failure
+            raise
 
 
 def preflight(runner: Runner, *, filesystems_path: Path = Path("/proc/filesystems")) -> None:
     """Check that loop devices, exFAT tools, and kernel exFAT support exist."""
+    required = ("losetup", "mkfs.exfat", "fsck.exfat")
+    missing = [tool for tool in required if shutil.which(tool) is None]
+    if missing:
+        raise AssemblerError(
+            f"preflight: missing required tools: {', '.join(missing)}",
+            hint="install util-linux and exfatprogs",
+        )
     result = runner.run(["losetup", "-f"], check=False)
     device = result.stdout.strip()
     if result.returncode != 0 or _LOOP_RE.fullmatch(device) is None:
@@ -150,10 +162,11 @@ def preflight(runner: Runner, *, filesystems_path: Path = Path("/proc/filesystem
         )
     for tool in ("mkfs.exfat", "fsck.exfat"):
         probe = runner.run([tool, "--version"], check=False)
-        if probe.returncode != 0:
+        output = f"{probe.stdout}\n{probe.stderr}".casefold()
+        if probe.returncode != 0 and "exfatprogs" not in output:
             raise AssemblerError(
-                f"preflight: {tool} is not available",
-                hint="install exfatprogs (and util-linux for losetup)",
+                f"preflight: {tool} failed to report a version",
+                hint="install a working exfatprogs",
             )
     try:
         filesystems = Path(filesystems_path).read_text(encoding="utf-8")

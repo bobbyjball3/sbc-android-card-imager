@@ -416,6 +416,68 @@ def test_assemble_when_verify_finds_extra_file_raises_and_cleans_up(
     assert not Path(str(out) + ".partial").exists()
 
 
+def test_assemble_when_umount_fails_lazy_unmount_and_detach_clean_up(
+    tmp_path: Path,
+) -> None:
+    stage_dir, plan_path, out = _fixture(tmp_path)
+    out.parent.mkdir(parents=True)
+    work = tmp_path / "work"
+    runner = _TamperingRunner(
+        [
+            _ok(stdout=LOOP + "\n"),
+            _ok(),
+            _ok(),
+            _ok(),
+            _ok(),
+            _ok(),
+            _fail(stderr="target is busy"),
+            _ok(),
+            _ok(),
+        ],
+        work / "mnt",
+    )
+
+    with pytest.raises(VerificationError, match="unexpected"):
+        assemble(stage_dir, plan_path, out, work, runner)
+
+    mnt = str(work / "mnt")
+    assert ["umount", mnt] in runner.commands
+    assert ["umount", "-l", mnt] in runner.commands
+    assert runner.commands[-1] == ["losetup", "-d", LOOP]
+    assert not out.exists()
+    assert not Path(str(out) + ".partial").exists()
+
+
+def test_assemble_when_loop_cannot_be_detached_raises_cleanup_error(
+    tmp_path: Path,
+) -> None:
+    stage_dir, plan_path, out = _fixture(tmp_path)
+    out.parent.mkdir(parents=True)
+    work = tmp_path / "work"
+    runner = _TamperingRunner(
+        [
+            _ok(stdout=LOOP + "\n"),
+            _ok(),
+            _ok(),
+            _ok(),
+            _ok(),
+            _ok(),
+            _fail(stderr="target is busy"),
+            _fail(stderr="lazy target is busy"),
+            _fail(stderr="device is busy"),
+        ],
+        work / "mnt",
+    )
+
+    with pytest.raises(AssemblerError, match="still attached") as caught:
+        assemble(stage_dir, plan_path, out, work, runner)
+
+    assert LOOP in str(caught.value)
+    assert str(work / "mnt") in str(caught.value)
+    assert not out.exists()
+    assert not Path(str(out) + ".partial").exists()
+
+
 def test_assemble_when_copy_to_output_fails_removes_partial(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -442,7 +504,17 @@ def _filesystems(tmp_path: Path, content: str) -> Path:
     return path
 
 
-def test_preflight_when_tools_and_exfat_are_present_succeeds(tmp_path: Path) -> None:
+def _patch_which(monkeypatch: pytest.MonkeyPatch, *, missing: str | None = None) -> None:
+    def fake_which(name: str) -> str | None:
+        return None if name == missing else f"/usr/bin/{name}"
+
+    monkeypatch.setattr(assembler.shutil, "which", fake_which)
+
+
+def test_preflight_when_tools_and_exfat_are_present_succeeds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_which(monkeypatch)
     runner = FakeRunner([_ok(stdout="/dev/loop0\n"), _ok(), _ok()])
     filesystems = _filesystems(tmp_path, "nodev\tsysfs\nnodev\texfat\n")
 
@@ -455,7 +527,42 @@ def test_preflight_when_tools_and_exfat_are_present_succeeds(tmp_path: Path) -> 
     ]
 
 
-def test_preflight_when_exfat_is_missing_raises(tmp_path: Path) -> None:
+def test_preflight_when_exfatprogs_version_exits_nonzero_succeeds(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_which(monkeypatch)
+    runner = FakeRunner(
+        [
+            _ok(stdout="/dev/loop0\n"),
+            CommandResult((), 1, "exfatprogs version : 1.2.9\n", "", 0.0),
+            CommandResult((), 16, "", "exfatprogs version : 1.2.9\n", 0.0),
+        ]
+    )
+    filesystems = _filesystems(tmp_path, "nodev\texfat\n")
+
+    preflight(runner, filesystems_path=filesystems)
+
+    assert runner.commands[-1] == ["fsck.exfat", "--version"]
+
+
+@pytest.mark.parametrize("tool", ["losetup", "mkfs.exfat", "fsck.exfat"])
+def test_preflight_when_binary_is_missing_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, tool: str
+) -> None:
+    _patch_which(monkeypatch, missing=tool)
+    runner = FakeRunner([])
+    filesystems = _filesystems(tmp_path, "nodev\texfat\n")
+
+    with pytest.raises(AssemblerError, match=tool.replace(".", r"\.")):
+        preflight(runner, filesystems_path=filesystems)
+
+    assert runner.calls == []
+
+
+def test_preflight_when_exfat_is_missing_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_which(monkeypatch)
     runner = FakeRunner([_ok(stdout="/dev/loop0\n"), _ok(), _ok()])
     filesystems = _filesystems(tmp_path, "nodev\tsysfs\n")
 
@@ -463,7 +570,10 @@ def test_preflight_when_exfat_is_missing_raises(tmp_path: Path) -> None:
         preflight(runner, filesystems_path=filesystems)
 
 
-def test_preflight_when_loop_device_is_missing_raises(tmp_path: Path) -> None:
+def test_preflight_when_loop_device_is_missing_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_which(monkeypatch)
     runner = FakeRunner([_ok(stdout=""), _ok(), _ok()])
     filesystems = _filesystems(tmp_path, "nodev\texfat\n")
 
@@ -471,7 +581,10 @@ def test_preflight_when_loop_device_is_missing_raises(tmp_path: Path) -> None:
         preflight(runner, filesystems_path=filesystems)
 
 
-def test_preflight_when_mkfs_is_missing_raises(tmp_path: Path) -> None:
+def test_preflight_when_version_probe_fails_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _patch_which(monkeypatch)
     runner = FakeRunner([_ok(stdout="/dev/loop0\n"), _fail(stderr="not found"), _ok()])
     filesystems = _filesystems(tmp_path, "nodev\texfat\n")
 

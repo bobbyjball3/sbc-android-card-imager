@@ -6,6 +6,8 @@ import hashlib
 import os
 import re
 from collections.abc import Callable
+from contextlib import suppress
+from dataclasses import dataclass
 from pathlib import Path
 
 from sbc_imager.assembler_report import (
@@ -21,6 +23,15 @@ from sbc_imager.runner import Runner
 _CHUNK = 8 * 1024 * 1024
 _LOOP_RE = re.compile(r"/dev/loop\d+")
 Progress = Callable[[str, int, int], None]
+
+
+@dataclass(frozen=True, slots=True)
+class MountState:
+    """The loop/mount resources that cleanup may need to release."""
+
+    mountpoint: Path
+    loop: str | None
+    mounted: bool
 
 
 def _run(runner: Runner, args: list[str], *, action: str) -> None:
@@ -72,6 +83,30 @@ def mount_filesystem(runner: Runner, loop: str, mountpoint: Path, *, readonly: b
 
 def unmount(runner: Runner, mountpoint: Path) -> None:
     _run(runner, ["umount", str(mountpoint)], action="umount")
+
+
+def lazy_unmount(runner: Runner, mountpoint: Path) -> None:
+    _run(runner, ["umount", "-l", str(mountpoint)], action="umount -l")
+
+
+def cleanup(runner: Runner, state: MountState) -> None:
+    """Release the mount and loop, escalating loudly when the loop survives."""
+    if state.mounted:
+        try:
+            unmount(runner, state.mountpoint)
+        except AssemblerError:
+            with suppress(AssemblerError):
+                lazy_unmount(runner, state.mountpoint)
+    if state.loop is None:
+        return
+    try:
+        detach_loop(runner, state.loop)
+    except AssemblerError as exc:
+        raise AssemblerError(
+            f"cleanup failed: loop device {state.loop} is still attached; "
+            f"unmount {state.mountpoint} and run 'losetup -d {state.loop}'",
+            hint="a mounted loop device was left behind; inspect it before retrying",
+        ) from exc
 
 
 def check_filesystem(runner: Runner, loop: str) -> None:

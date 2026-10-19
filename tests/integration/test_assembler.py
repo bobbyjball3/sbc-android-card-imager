@@ -116,15 +116,10 @@ def test_assemble_when_loop_and_exfat_are_available_builds_verified_image(
     )
 
     sfdisk = shutil.which("sfdisk")
-    if sfdisk is not None:
-        partition = runner.run([sfdisk, "-d", str(out)]).stdout
-        assert re.search(r"start=\s*2048\b", partition), partition
-        assert re.search(r"Id=\s*7\b", partition), partition
-    else:
-        header = out.read_bytes()[:512]
-        assert header[450] == 0x07
-        assert int.from_bytes(header[454:458], "little") == 2048
-        assert header[510:512] == b"\x55\xaa"
+    assert sfdisk is not None, "sfdisk is required for the MBR assertion"
+    partition = runner.run([sfdisk, "-d", str(out)]).stdout
+    assert re.search(r"start=\s*2048\b", partition), partition
+    assert re.search(r"(?:Id=\s*7\b|type=\s*7\b)", partition), partition
 
     loop = runner.run(
         [
