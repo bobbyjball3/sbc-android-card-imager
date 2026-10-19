@@ -11,10 +11,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # mkfs.exfat/fsck.exfat; e2fsprogs provides the fsck/mkfs family used by tests.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        e2fsprogs \
-        exfatprogs \
-        util-linux \
-        fdisk \
+        e2fsprogs=1.47.0-2+b2 \
+        exfatprogs=1.2.0-1+deb12u1 \
+        util-linux=2.38.1-5+deb12u3 \
+        fdisk=2.38.1-5+deb12u3 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
