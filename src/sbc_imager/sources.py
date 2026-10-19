@@ -1,4 +1,4 @@
-"""Content-addressed cache and local source resolution."""
+"""Content-addressed cache and local/git source resolution."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from pathlib import Path
 import platformdirs
 
 from sbc_imager.errors import SourceError
+from sbc_imager.sources_git import resolve_git as resolve_git
 
 CACHE_ENV = "SBC_IMAGER_CACHE_DIR"
 APP_NAME = "sbc-imager"
