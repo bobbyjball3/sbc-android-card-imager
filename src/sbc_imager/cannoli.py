@@ -10,6 +10,10 @@ https://raw.githubusercontent.com/CannoliHQ/cannoli/7755e376b6add0bbd25ea19104c3
 Pinned commit: 7755e376b6add0bbd25ea19104c368b7a40b979f
 """
 
+# allow: SIZE_OK - this module is the pinned Cannoli registry data table
+# (platform tags, BIOS requirements, path contract) plus a small renderer;
+# splitting the table would make the pinned contract harder to audit.
+
 from __future__ import annotations
 
 import argparse
