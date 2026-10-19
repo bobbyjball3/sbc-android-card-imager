@@ -1,0 +1,12 @@
+{
+  "apps": [
+    {
+      "id": "com.tailscale.ipn",
+      "url": "https://github.com/tailscale/tailscale-android",
+      "author": "tailscale",
+      "name": "Tailscale",
+      "additionalSettings": "{\"includePrereleases\":false,\"fallbackToOlderReleases\":true,\"verifyLatestTag\":false,\"sortMethodChoice\":\"date\",\"autoApkFilterByArch\":true}"
+    }
+  ],
+  "settings": null
+}
