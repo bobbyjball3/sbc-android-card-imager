@@ -19,7 +19,7 @@ All commands accept the global `--verbose`/`-v` and `--help` options.
 | `sbc-imager platforms` | List all 51 Cannoli tags. | `--json` |
 | `sbc-imager plan` | Resolve sources, validate, and print the planned tree and sizes. | `--manifest PATH`, `--offline`, `--strict`, `--json`, `--allow-branch` |
 | `sbc-imager fetch` | Populate the cache from every declared source. | `--manifest PATH`, `--offline`, `--json`, `--allow-branch` |
-| `sbc-imager build` | Fetch, stage, assemble, verify, and atomically publish an image. | `--manifest PATH`, `--output PATH`, `--size SIZE`, `--reserve SIZE`, `--offline`, `--force`, `--keep-work`, `--allow-branch`, `--json` |
+| `sbc-imager build` | Fetch, stage, assemble, verify, and atomically publish an image. | `--manifest PATH`, `--output PATH`, `--size SIZE`, `--reserve SIZE`, `--device DEVICE`, `--expand`, `--allow-builtin-sd`, `--offline`, `--force`, `--keep-work`, `--allow-branch`, `--json` |
 | `sbc-imager verify` | Re-verify an image tree against the manifest. | `--image PATH`, `--manifest PATH`, `--offline`, `--allow-branch`, `--json` |
 | `sbc-imager image` | List disk targets or flash a verified image on macOS. | `--image PATH`, `--list`, `--device DEVICE`, `--allow-builtin-sd`, `--dry-run` |
 
@@ -257,6 +257,20 @@ partition = image - 1 MiB
 A pinned size ignores `reserve` for the space budget, though `reserve` is still
 parsed. `--reserve` overrides `[image].reserve`; `--size` overrides
 `[image].size`; `--output` overrides `[image].output`.
+
+For `build --device /dev/diskN --expand`, the target disk determines the image
+size instead:
+
+```text
+image     = floor(disk_size / 1 MiB) * 1 MiB
+partition = image - 1 MiB
+```
+
+`--expand` requires `--device`; `--device` is only valid with `--expand`; and
+`--size` cannot be combined with `--expand`. The device must resolve through the
+same assessed safe-disk list as `image`; `--allow-builtin-sd` is required for an
+internal SD reader. Build reads only disk geometry and never writes the card.
+The expanded size overrides `[image].size` and is not affected by `reserve`.
 
 The 64 MiB overhead is a floor, so a tiny fixture needs at least a 66 MiB pinned
 image: 1 MiB offset + 64 MiB overhead + content. A 64 MiB image cannot hold the

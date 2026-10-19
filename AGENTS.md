@@ -147,6 +147,17 @@ formats or partitions, and never retries. `--dry-run` reports the target and ima
 without writing. On interruption the card is left partially written with a loud warning and
 exit code 130; it is not repaired automatically.
 
+### Build-time target sizing
+`build --device /dev/diskN --expand` sizes the image to the selected disk
+without writing it. It uses the same `assess_disks()` and
+`resolve_explicit_disk()` safety path as `image`; `--allow-builtin-sd` is
+required for an internal SD reader. `--expand` requires `--device`, `--device`
+is invalid without `--expand`, and `--size` cannot be combined with `--expand`.
+The image is `floor(disk.size / 1MiB) * 1MiB` (minimum 2 MiB), and the partition
+is the image minus the 1 MiB MBR offset. The host image is sparse, but flashing
+still writes the full logical size. Build reads disk geometry only; it does not
+require root, unmount, or write the device.
+
 ### Testing strategy
 Write tests first. `task test` runs the rootless unit suite, which uses the fake
 `Runner`/`SourceCache` seams and temporary directories instead of real subprocesses or

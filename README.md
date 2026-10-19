@@ -99,7 +99,33 @@ An explicit target skips the interactive menu, but still requires the typed
 sudo -E sbc-imager image --image dist/demo.img --device /dev/disk9
 
 # Internal built-in SD reader: explicit device plus opt-in.
-sudo -E sbc-imager image --image dist/demo.img --device /dev/disk5 --allow-builtin-sd
+sudo -E uv run sbc-imager image --image dist/demo.img --device /dev/disk5 --allow-builtin-sd
+```
+
+### Size an image to the target card
+
+`build --expand` sizes the image to the full aligned capacity of the selected
+disk without writing the card. It reads the same safe whole-disk assessment as
+`image`, so `--device` accepts `diskN`, `/dev/diskN`, or `/dev/rdiskN`, and
+`--allow-builtin-sd` is required for an internal SD reader. `--expand` requires
+`--device`; `--device` is invalid without `--expand`; `--size` cannot be
+combined with `--expand`.
+
+```shell
+uv run sbc-imager build --manifest examples/rg477m/rg477m.toml \
+  --device /dev/disk5 --allow-builtin-sd --expand
+```
+
+The image is the largest 1 MiB-aligned size that fits the disk, with a minimum
+of 2 MiB. For the 511,868,665,856-byte disk5 that is `488156MiB`
+(511,868,665,856 bytes), with a 511,867,617,280-byte partition. The expanded
+size overrides `[image].size`; reserve is not used for that sizing. The host
+image is sparse, but flashing still writes the full logical size. Then flash it:
+
+```shell
+sudo -E uv run sbc-imager image \
+  --image examples/rg477m/dist/rg477m.img \
+  --device /dev/disk5 --allow-builtin-sd
 ```
 
 Without `--size`, the demo manifest sizes itself to 67 MiB (1 MiB partition
