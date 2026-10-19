@@ -9,7 +9,15 @@ from sbc_imager.config import ImageConfig
 from sbc_imager.validation_common import error
 
 _SIZE_RE = re.compile(r"^(\d+(?:\.\d{1,3})?)\s*([KMGT]iB|B|bytes?)?$", re.IGNORECASE)
-_UNITS = {"kib": 1024, "mib": 1024**2, "gib": 1024**3, "tib": 1024**4, "b": 1, "bytes": 1}
+_UNITS = {
+    "kib": 1024,
+    "mib": 1024**2,
+    "gib": 1024**3,
+    "tib": 1024**4,
+    "b": 1,
+    "byte": 1,
+    "bytes": 1,
+}
 _FORMAT_UNITS = (("TiB", 1024**4), ("GiB", 1024**3), ("MiB", 1024**2), ("KiB", 1024))
 _DECIMALS = 1000
 

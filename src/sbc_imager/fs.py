@@ -57,6 +57,7 @@ def _copy_data_holes(src: Path, dst: Path) -> bool:
                 raise
             end = min(hole_at, size)
             source.seek(data_at)
+            target.seek(data_at)
             remaining = end - data_at
             while remaining:
                 chunk = source.read(min(_CHUNK, remaining))
