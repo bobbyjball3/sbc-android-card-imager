@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import stat
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -59,7 +60,11 @@ def write_image(
     dry_run: bool = False,
     progress: ProgressCallback | None = None,
 ) -> WriteResult:
-    """Write ``image_path`` to ``disk``'s raw device after unmounting it."""
+    """Write ``image_path`` to ``disk``'s raw device after unmounting it.
+
+    ``device_path`` is a test-only seam that accepts an existing regular file
+    outside ``/dev``; production callers must leave it as ``None``.
+    """
     image = Path(image_path)
     if not dry_run and os.geteuid() != 0:
         raise SafetyError("writing a card image requires root", hint=_ROOT_HINT)
@@ -89,27 +94,51 @@ def write_image(
 
 
 def _resolve_device(disk: DiskInfo, override: Path | None) -> Path:
-    if override is None:
-        if _DISK_IDENTIFIER.fullmatch(disk.identifier) is None:
-            raise SafetyError(f"refusing unsafe disk identifier {disk.identifier!r}")
-        return Path(f"/dev/r{disk.identifier}")
+    if override is not None:
+        return _resolve_test_device(override)
 
-    device = Path(override)
-    if not device.is_absolute():
-        raise SafetyError(f"device path must be absolute: {device}")
-    resolved = device.resolve()
-    if any(
-        _is_dev(candidate) and _RAW_DEVICE.fullmatch(candidate.as_posix()) is None
-        for candidate in (device, resolved)
-    ):
+    if _DISK_IDENTIFIER.fullmatch(disk.identifier) is None:
+        raise SafetyError(f"refusing unsafe disk identifier {disk.identifier!r}")
+    device = Path(f"/dev/r{disk.identifier}")
+    canonical = Path(os.path.realpath(device))
+    folded = canonical.as_posix().casefold()
+    mode = _stat_mode(canonical)
+    if mode is not None and stat.S_ISBLK(mode) and _RAW_DEVICE.fullmatch(folded) is None:
+        raise SafetyError(f"refusing to write to block device {device}")
+    if _RAW_DEVICE.fullmatch(folded) is None:
         raise SafetyError(
-            f"refusing to write to {device}; only /dev/rdisk<N> raw devices are allowed"
+            f"refusing to write to {device}; canonical path {canonical} is not an allowed "
+            "/dev/rdisk<N> raw device"
+        )
+    if canonical.name.casefold() != device.name.casefold():
+        raise SafetyError(
+            f"refusing to write to {device}; canonical path {canonical} does not match the disk"
         )
     return device
 
 
-def _is_dev(path: Path) -> bool:
-    return _DEV_PREFIX.match(path.as_posix()) is not None
+def _resolve_test_device(override: Path) -> Path:
+    device = Path(override)
+    if not device.is_absolute():
+        raise SafetyError(f"device_path must be absolute: {device}")
+    canonical = Path(os.path.realpath(device))
+    if _DEV_PREFIX.match(canonical.as_posix().casefold()) is not None:
+        raise SafetyError(
+            f"refusing device_path override {device}; overrides must be a regular file outside /dev"
+        )
+    mode = _stat_mode(canonical)
+    if mode is None or not stat.S_ISREG(mode):
+        raise SafetyError(
+            f"refusing device_path override {device}; overrides must be a regular file outside /dev"
+        )
+    return device
+
+
+def _stat_mode(path: Path) -> int | None:
+    try:
+        return os.stat(path).st_mode
+    except OSError:
+        return None
 
 
 def _unmount(disk: DiskInfo, runner: Runner) -> None:
