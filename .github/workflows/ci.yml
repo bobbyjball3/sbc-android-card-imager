@@ -1,0 +1,85 @@
+name: ci
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+      - name: Sync dependencies
+        run: uv sync --frozen --all-groups
+      - name: Lint
+        run: task lint
+      - name: Build wheel
+        run: uv build
+      - name: Install wheel
+        run: uv tool install --force ./dist/*.whl
+      - name: Verify installed CLI
+        run: '"$HOME/.local/bin/sbc-imager" --version'
+
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+      - name: Sync dependencies
+        run: uv sync --frozen --all-groups
+      - name: Unit tests
+        run: task test
+      - name: Install exFAT tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y exfatprogs
+      - name: Integration tests
+        if: runner.os == 'Linux'
+        run: sudo -E env "PATH=$PATH" uv run pytest -m integration -q
+
+  pre-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Sync dependencies
+        run: uv sync --frozen --all-groups
+      - name: Run pre-commit
+        run: uv run pre-commit run --all-files
+
+  container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+      - name: Build assembler image
+        run: task container
+      - name: Run assembler preflight
+        run: docker run --rm --privileged sbc-imager-assembler:local python -m sbc_imager.assembler --preflight
