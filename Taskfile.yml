@@ -5,7 +5,7 @@ tasks:
     desc: Install dependencies and git hooks
     cmds:
       - uv sync --all-groups
-      - uv run pre-commit install
+      - uv run pre-commit install --allow-missing-config
 
   format:
     desc: Format the codebase
