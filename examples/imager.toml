@@ -1,0 +1,33 @@
+[image]
+name = "demo"
+label = "CANNOLI"
+size = "auto"
+reserve = "1MiB"
+output = "dist/demo.img"
+
+[[rom]]
+platform = "GBA"
+path = "demo/roms/GBA"
+
+[[bios]]
+platform = "GBA"
+path = "demo/bios/GBA/gba_bios.bin"
+
+[[art]]
+platform = "GBA"
+path = "demo/art/GBA"
+
+[[overlay]]
+platform = "GBA"
+path = "demo/overlays/GBA/bezel.png"
+
+[[shader]]
+path = "demo/shaders/crt-lamp"
+
+[[apk]]
+path = "demo/apks/Demo.apk"
+
+[[artifact]]
+root = "card"
+dest = "Manuals"
+path = "demo/manuals/readme.txt"
