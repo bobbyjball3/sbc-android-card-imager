@@ -8,9 +8,6 @@ import pytest
 import sbc_imager.runner as runner_module
 from sbc_imager.errors import CommandError
 from sbc_imager.runner import CommandResult, SubprocessRunner, redact_url
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
 from tests.fakes import FakeRunner
 
 
