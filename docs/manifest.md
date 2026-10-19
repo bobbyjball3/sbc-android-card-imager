@@ -78,7 +78,8 @@ ROMs, BIOS files, art, APKs, and generic artifacts must be local.
 Pinning rules:
 
 - **git:** `ref` must be a tag or an exact 40-hex commit. A branch is rejected
-  unless `--allow-branch` is passed, and then it is fetched as a moving ref.
+  unless `--allow-branch` is passed; with that flag the branch is fetched and the
+  resolved commit is recorded in the cache metadata. No warning is printed.
   Submodules and Git LFS are not supported.
 - **url:** the SHA-256 is mandatory, so an HTTPS download is pinned by content.
   `http://` is accepted but not recommended.
@@ -160,9 +161,13 @@ Destination: `Cannoli/Overlays/<TAG>/`.
 | `source` | string | no | A declared `[[source]].id`. |
 | `as` | string | no | Rename a file, or name a preset directory. |
 
-A shader file must be `.glslp`. A shader directory must contain a root `.glslp`
-preset; its files are copied under that preset name. With `source`, the same
-rules apply to the resolved source content.
+A shader file must be `.glslp`. A local shader directory must contain a root
+`.glslp` preset; its files are copied under that preset name. A source-relative
+path with an extension must still be `.glslp`, but a source-relative directory
+is copied as declared and is not pre-validated for a root `.glslp` before
+source resolution. For example, a resolved source directory containing only
+`inner.glsl` is accepted and planned under
+`Cannoli/Shaders/<preset>/inner.glsl`.
 
 Destination: `Cannoli/Shaders/<preset>/...`.
 
@@ -197,11 +202,14 @@ Errors stop the command with exit code 2 before image bytes are written:
 - `source` on a ROM, BIOS, art, APK, or artifact entry (it is an unknown key).
 - Unknown or case-ambiguous platform tags. Tags are normalized to the canonical
   uppercase form from the pinned Cannoli registry.
-- A missing local path, a symlink, or a special file anywhere in a local source
-  tree.
-- An overlay that is not `.png`; a shader that is not `.glslp` or whose directory
-  has no root `.glslp`; an APK that is not `.apk`; art that is not an image; a
-  `PC` ROM file that is not a supported shortcut.
+- A missing local path, or a symlink/special file in a local typed `path` tree
+  (`[[rom]]`, `[[bios]]`, `[[art]]`, local `[[overlay]]`/`[[shader]]`, `[[apk]]`,
+  or `[[artifact]]`). Trees resolved through `[[source]]` (local, git, or URL)
+  are copied as declared and are not scanned for symlinks or special files by
+  validation.
+- An overlay that is not `.png`; a shader file that is not `.glslp` or a local
+  shader directory with no root `.glslp`; an APK that is not `.apk`; art that is
+  not an image; a `PC` ROM file that is not a supported shortcut.
 - A typed entry that produces zero files.
 - exFAT-invalid path components: the characters `\ / : * ? " < > |`, control
   characters, a trailing dot or space, the reserved names `CON`, `PRN`, `AUX`,
@@ -216,8 +224,7 @@ Errors stop the command with exit code 2 before image bytes are written:
 Warnings are non-fatal unless `plan --strict` is used:
 
 - `art-no-rom`, `junk-rom-file`, `missing-required-bios`, `non-nfc-name`,
-  `artifact-config`, `unused-source`, `overlay-non-png`, and the branch warning
-  emitted when a git ref is accepted under `--allow-branch`.
+  `artifact-config`, `unused-source`, and `overlay-non-png`.
 
 ## Size math
 

@@ -54,6 +54,10 @@ def _markdown_files() -> tuple[Path, ...]:
     return (README, MANIFEST_DOC, TAG_DOC)
 
 
+def _normalized(path: Path) -> str:
+    return " ".join(path.read_text(encoding="utf-8").split())
+
+
 def _relative_links(path: Path) -> list[str]:
     links: list[str] = []
     for raw in _INLINE_LINK.findall(path.read_text(encoding="utf-8")):
@@ -66,6 +70,41 @@ def _relative_links(path: Path) -> list[str]:
 
 def test_cannoli_tag_doc_when_compared_to_registry_is_current() -> None:
     assert TAG_DOC.read_text(encoding="utf-8") == render_markdown()
+
+
+def test_cannoli_tag_doc_when_read_explains_how_to_refresh_the_registry() -> None:
+    text = _normalized(TAG_DOC)
+
+    assert "## Refreshing the tag registry" in text
+    assert "python -m sbc_imager.cannoli --markdown" in text
+    assert "CANNOLI_COMMIT" in text
+    assert "## Refreshing the tag registry" in render_markdown()
+
+
+def test_manifest_doc_when_read_scopes_shader_validation_to_local_directories() -> None:
+    text = _normalized(MANIFEST_DOC)
+
+    assert "A local shader directory must contain a root `.glslp` preset" in text
+    assert "a local shader directory with no root `.glslp`" in text
+    assert "A source-relative path with an extension must still be `.glslp`" in text
+    assert "a source-relative directory is copied as declared" in text
+    assert "is not pre-validated for a root `.glslp`" in text
+
+
+def test_manifest_doc_when_read_does_not_claim_a_branch_warning() -> None:
+    text = _normalized(MANIFEST_DOC)
+
+    assert "No warning is printed" in text
+    assert "resolved commit is recorded in the cache metadata" in text
+    assert "branch warning" not in text
+
+
+def test_manifest_doc_when_read_scopes_symlink_checks_to_local_typed_paths() -> None:
+    text = _normalized(MANIFEST_DOC)
+
+    assert "a symlink/special file in a local typed `path` tree" in text
+    assert "Trees resolved through `[[source]]` (local, git, or URL)" in text
+    assert "are not scanned for symlinks or special files by validation" in text
 
 
 def test_cli_when_introspected_exposes_every_documented_command() -> None:

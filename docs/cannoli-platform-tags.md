@@ -72,3 +72,11 @@ These platforms will not start without the listed BIOS files. Place them under `
 | INTELLIVISION | `exec.bin`, `grom.bin` |
 | COLECOVISION | `Databases/msxromdb.xml`, `Machines/Shared Roms/MSX.rom` |
 | AMIGA | `kick34005.A500`, `kick40068.A1200`, `kick40060.CD32`, `kick40060.CD32.ext` |
+
+## Refreshing the tag registry
+
+This registry is pinned to Cannoli v1.9.1 and is never fetched at runtime. To refresh it, update `CANNOLI_VERSION`, `CANNOLI_COMMIT`, and `CANNOLI_PLATFORMS_URL` in `src/sbc_imager/cannoli.py`, copy the tag/name pairs from the pinned `platforms.json` into `PLATFORM_TAGS`, and regenerate this document:
+
+```shell
+uv run python -m sbc_imager.cannoli --markdown > docs/cannoli-platform-tags.md
+```

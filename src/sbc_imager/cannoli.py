@@ -263,6 +263,23 @@ def render_markdown() -> str:
         rendered = ", ".join(f"`{name}`" for name in files)
         lines.append(f"| {tag} | {rendered} |")
 
+    lines.extend(
+        [
+            "",
+            "## Refreshing the tag registry",
+            "",
+            "This registry is pinned to Cannoli v1.9.1 and is never fetched at runtime. "
+            "To refresh it, update `CANNOLI_VERSION`, `CANNOLI_COMMIT`, and "
+            "`CANNOLI_PLATFORMS_URL` in `src/sbc_imager/cannoli.py`, copy the tag/name "
+            "pairs from the pinned `platforms.json` into `PLATFORM_TAGS`, and regenerate "
+            "this document:",
+            "",
+            "```shell",
+            "uv run python -m sbc_imager.cannoli --markdown > docs/cannoli-platform-tags.md",
+            "```",
+        ]
+    )
+
     lines.append("")
     return "\n".join(lines)
 

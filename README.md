@@ -21,8 +21,8 @@ to a removable card on macOS.
   the `Cannoli/Config/settings.json` `{}` install marker, `APKs/` at the card
   root, and `CREDITS.md`.
 - Refuses invalid manifests before writing image bytes: unknown tags, bad exFAT
-  names, case/NFC collisions, duplicate destinations, symlinks, and oversize
-  content all fail early.
+  names, case/NFC collisions, duplicate destinations, symlinks in local typed
+  paths, and oversize content all fail early.
 - Verifies the built image with `fsck.exfat -n`, a directory check, and a
   per-file SHA-256 comparison against the manifest.
 - Flashes only an external removable whole disk, after showing its model, size,
