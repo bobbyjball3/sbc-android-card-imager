@@ -38,6 +38,8 @@ _DISK_IDENTIFIER: Final = re.compile(r"disk\d+")
 _DEV_PREFIX: Final = re.compile(r"/+dev(?:/|$)")
 _RAW_DEVICE: Final = re.compile(r"/dev/rdisk\d+")
 _ROOT_HINT: Final = "sudo -E uv run sbc-imager image ..."
+_SD_PROTOCOLS: Final[frozenset[str]] = frozenset({"Secure Digital", "SD Card"})
+_REMOVABLE_PROTOCOLS: Final[frozenset[str]] = frozenset({"USB"}) | _SD_PROTOCOLS
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,12 +53,47 @@ class WriteResult:
     device: Path
 
 
+def validate_target(disk: DiskInfo, *, allow_internal: bool = False) -> None:
+    """Refuse any target that is not a safe whole disk."""
+    if disk.boot:
+        raise SafetyError(
+            f"refusing to write to {disk.identifier}; it is the boot disk",
+            hint="select a different disk; run `sbc-imager image --list` to inspect targets",
+        )
+    if not disk.whole:
+        raise SafetyError(
+            f"refusing to write to {disk.identifier}; it is not a whole disk",
+            hint="re-run image enumeration and select a whole removable disk",
+        )
+    if disk.internal:
+        if not allow_internal:
+            raise SafetyError(
+                f"refusing to write to {disk.identifier}; it is an internal disk",
+                hint=(
+                    "select an external removable disk instead, or use --allow-builtin-sd "
+                    "for an internal removable SD reader"
+                ),
+            )
+        if not disk.is_builtin_sd:
+            raise SafetyError(
+                f"refusing to write to {disk.identifier}; it is an internal disk that is "
+                "not a removable SD reader",
+                hint="--allow-builtin-sd never permits the boot disk or a non-removable disk",
+            )
+    elif not (disk.removable or disk.ejectable or disk.protocol in _REMOVABLE_PROTOCOLS):
+        raise SafetyError(
+            f"refusing to write to {disk.identifier}; it is not removable",
+            hint="select an external removable disk instead",
+        )
+
+
 def write_image(
     image_path: Path,
     disk: DiskInfo,
     runner: Runner,
     *,
     device_path: Path | None = None,
+    allow_internal: bool = False,
     dry_run: bool = False,
     progress: ProgressCallback | None = None,
 ) -> WriteResult:
@@ -64,18 +101,11 @@ def write_image(
 
     ``device_path`` is a test-only seam that accepts an existing regular file
     outside ``/dev``; production callers must leave it as ``None``.
+    ``allow_internal`` permits only an internal removable SD-card reader; it
+    never permits a boot disk or any other internal disk.
     """
     image = Path(image_path)
-    if not disk.whole:
-        raise SafetyError(
-            f"refusing to write to {disk.identifier}; it is not a whole disk",
-            hint="re-run image enumeration and select a whole removable disk",
-        )
-    if disk.internal:
-        raise SafetyError(
-            f"refusing to write to {disk.identifier}; it is an internal disk",
-            hint="select an external removable disk instead",
-        )
+    validate_target(disk, allow_internal=allow_internal)
     if not dry_run and os.geteuid() != 0:
         raise SafetyError("writing a card image requires root", hint=_ROOT_HINT)
 

@@ -40,6 +40,21 @@ def _disk(size: int, identifier: str = "disk9") -> DiskInfo:
     )
 
 
+def _builtin_sd(size: int = 1024, identifier: str = "disk5") -> DiskInfo:
+    return DiskInfo(
+        identifier=identifier,
+        size=size,
+        label="",
+        model="Built In SDXC Reader",
+        protocol="Secure Digital",
+        internal=True,
+        removable=True,
+        ejectable=True,
+        whole=True,
+        virtual_or_physical="Physical",
+    )
+
+
 def _result(args: Sequence[str], returncode: int = 0, stderr: str = "") -> CommandResult:
     return CommandResult(tuple(args), returncode, "", stderr, 0.01)
 
@@ -106,6 +121,97 @@ def test_write_image_when_target_disk_classification_is_unsafe_refuses(
 
     assert expected in caught.value.message
     assert runner.calls == []
+    assert target.read_bytes() == b"\0" * 4
+
+
+def test_write_image_when_internal_sd_is_denied_by_default(tmp_path: Path) -> None:
+    target = _target(tmp_path, size=4)
+
+    with pytest.raises(SafetyError) as caught:
+        write_image(
+            _image(tmp_path, b"card"),
+            _builtin_sd(),
+            FakeRunner(),
+            device_path=target,
+            dry_run=True,
+        )
+
+    assert "internal disk" in caught.value.message
+    assert "--allow-builtin-sd" in (caught.value.hint or "")
+
+
+def test_write_image_when_internal_sd_is_allowed_writes_to_the_removable_reader(
+    tmp_path: Path,
+) -> None:
+    data = b"card"
+    target = _target(tmp_path)
+    runner = FakeRunner(
+        results=[
+            _result(["diskutil", "unmountDisk", "/dev/disk5"]),
+            _result(["diskutil", "eject", "/dev/disk5"]),
+        ]
+    )
+
+    result = write_image(
+        _image(tmp_path, data),
+        _builtin_sd(),
+        runner,
+        device_path=target,
+        allow_internal=True,
+        progress=lambda *_: None,
+    )
+
+    assert target.read_bytes() == data
+    assert result.bytes_written == len(data)
+    assert runner.commands == [
+        ["diskutil", "unmountDisk", "/dev/disk5"],
+        ["diskutil", "eject", "/dev/disk5"],
+    ]
+
+
+@pytest.mark.parametrize(
+    "disk",
+    [
+        replace(_builtin_sd(), removable=False, ejectable=False),
+        replace(_builtin_sd(), protocol="Apple Fabric"),
+    ],
+)
+def test_write_image_when_allow_internal_target_is_not_a_removable_sd_refuses(
+    tmp_path: Path, disk: DiskInfo
+) -> None:
+    target = _target(tmp_path, size=4)
+
+    with pytest.raises(SafetyError) as caught:
+        write_image(
+            _image(tmp_path, b"card"),
+            disk,
+            FakeRunner(),
+            device_path=target,
+            allow_internal=True,
+            dry_run=True,
+        )
+
+    assert "not a removable SD reader" in caught.value.message
+    assert target.read_bytes() == b"\0" * 4
+
+
+def test_write_image_when_boot_disk_is_targeted_refuses_even_with_allow_internal(
+    tmp_path: Path,
+) -> None:
+    target = _target(tmp_path, size=4)
+    disk = replace(_builtin_sd(), boot=True)
+
+    with pytest.raises(SafetyError) as caught:
+        write_image(
+            _image(tmp_path, b"card"),
+            disk,
+            FakeRunner(),
+            device_path=target,
+            allow_internal=True,
+            dry_run=True,
+        )
+
+    assert "boot disk" in caught.value.message
     assert target.read_bytes() == b"\0" * 4
 
 

@@ -1,4 +1,4 @@
-"""Typer registration for the interactive image command."""
+"""Typer registration for the macOS image command."""
 
 from __future__ import annotations
 
@@ -10,17 +10,29 @@ from typing import Annotated, Final
 import typer
 from rich.console import Console
 
-from sbc_imager.errors import SafetyError
+from sbc_imager.errors import ConfigError, SafetyError
 from sbc_imager.fs import sha256_file
-from sbc_imager.imaging import DiskInfo, enumerate_disks, render_table, write_image
-from sbc_imager.imaging_write import WriteResult
+from sbc_imager.imaging import (
+    DiskAssessment,
+    DiskInfo,
+    assess_disks,
+    enumerate_disks,
+    normalize_disk_identifier,
+    render_assessment_table,
+    render_table,
+    write_image,
+)
+from sbc_imager.imaging_write import WriteResult, validate_target
 from sbc_imager.runner import SubprocessRunner
 from sbc_imager.sizes import format_size
 
 Handler = Callable[[Callable[..., object]], Callable[..., object]]
 
 _ROOT_HINT: Final = "sudo -E uv run sbc-imager image ..."
-_NO_DISKS: Final = "no safe removable disks found; connect a USB card reader"
+_NO_DISKS: Final = (
+    "no safe removable disks found; run `sbc-imager image --list` to inspect every disk"
+)
+_LIST_HINT: Final = "run `sbc-imager image --list` to inspect every whole disk and its reason"
 
 
 def _prompt_line(message: str) -> str:
@@ -44,6 +56,23 @@ def _select_disk(disks: Sequence[DiskInfo]) -> DiskInfo:
             f"disk selection {number} is out of range 1-{len(disks)}; aborting without writing"
         )
     return disks[number - 1]
+
+
+def _select_explicit_device(assessments: Sequence[DiskAssessment], raw: str) -> DiskInfo:
+    identifier = normalize_disk_identifier(raw)
+    for assessment in assessments:
+        if assessment.disk.identifier != identifier:
+            continue
+        if not assessment.allowed:
+            raise SafetyError(
+                f"refusing {raw}; {identifier} is not a safe target: {assessment.reason}",
+                hint=_LIST_HINT,
+            )
+        return assessment.disk
+    raise SafetyError(
+        f"refusing {raw}; {identifier} is not a whole disk reported by diskutil",
+        hint=_LIST_HINT,
+    )
 
 
 def _render_warning(console: Console, disk: DiskInfo) -> None:
@@ -102,31 +131,82 @@ def register(app: typer.Typer, handle_errors: Handler) -> None:
     def image(
         ctx: typer.Context,
         image_path: Annotated[
-            Path, typer.Option("--image", exists=True, dir_okay=False, help="Image to flash.")
-        ],
+            Path | None,
+            typer.Option("--image", exists=True, dir_okay=False, help="Image to flash."),
+        ] = None,
+        list_disks: bool = typer.Option(
+            False,
+            "--list",
+            help="List every whole disk with its safety status and reason; writes nothing.",
+        ),
+        device: Annotated[
+            str | None,
+            typer.Option(
+                "--device",
+                help="Explicit target: diskN, /dev/diskN, or /dev/rdiskN.",
+            ),
+        ] = None,
+        allow_builtin_sd: bool = typer.Option(
+            False,
+            "--allow-builtin-sd",
+            help="Permit an internal removable SD reader with --device (or --list).",
+        ),
         dry_run: bool = typer.Option(
             False, "--dry-run", help="Show the target and image details without writing."
         ),
     ) -> None:
         """Flash a verified image to a removable card after typed confirmation."""
         runner = SubprocessRunner()
-        disks = enumerate_disks(runner)
-        if not disks:
-            raise SafetyError(_NO_DISKS)
-        if not dry_run and os.geteuid() != 0:
-            raise SafetyError("writing a card image requires root", hint=_ROOT_HINT)
-
         console = Console()
-        render_table(console, disks)
-        disk = _select_disk(disks)
+
+        if list_disks:
+            assessments = assess_disks(runner, allow_builtin_sd=allow_builtin_sd)
+            list_console = Console(width=max(console.width, 160))
+            render_assessment_table(list_console, assessments)
+            return
+
+        if image_path is None:
+            raise ConfigError(
+                "--image is required unless --list is used",
+                hint="run `sbc-imager image --list` to inspect disk targets first",
+            )
+        if allow_builtin_sd and device is None:
+            raise SafetyError(
+                "--allow-builtin-sd requires an explicit --device",
+                hint=(
+                    "select a target with --device /dev/diskN; use --list with "
+                    "--allow-builtin-sd to inspect statuses"
+                ),
+            )
+
+        if device is not None:
+            assessments = assess_disks(runner, allow_builtin_sd=allow_builtin_sd)
+            disk = _select_explicit_device(assessments, device)
+            if not dry_run and os.geteuid() != 0:
+                raise SafetyError("writing a card image requires root", hint=_ROOT_HINT)
+        else:
+            disks = enumerate_disks(runner)
+            if not disks:
+                raise SafetyError(_NO_DISKS, hint=_LIST_HINT)
+            if not dry_run and os.geteuid() != 0:
+                raise SafetyError("writing a card image requires root", hint=_ROOT_HINT)
+            render_table(console, disks)
+            disk = _select_disk(disks)
+
         if dry_run:
+            validate_target(disk, allow_internal=allow_builtin_sd)
             _print_dry_run(console, image_path, disk)
             return
 
         _render_warning(console, disk)
         _require_confirmation(disk)
         try:
-            result = write_image(image_path, disk, runner)
+            result = write_image(
+                image_path,
+                disk,
+                runner,
+                allow_internal=allow_builtin_sd,
+            )
         except KeyboardInterrupt:
             raise typer.Exit(130) from None
         _print_write_summary(console, result)
