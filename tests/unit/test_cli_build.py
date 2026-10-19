@@ -17,10 +17,13 @@ from sbc_imager.errors import (
     SbcImagerError,
     VerificationError,
 )
+from sbc_imager.imaging import DiskAssessment, DiskInfo
 from sbc_imager.validation import Warning
 from sbc_imager.verify import VerifyReport
 
 runner = CliRunner()
+MIB = 1024 * 1024
+DISK5_BYTES = 511_868_665_856
 
 
 def _manifest(tmp_path: Path) -> Path:
@@ -43,6 +46,63 @@ def _report(tmp_path: Path) -> BuildReport:
         sources=(),
         warnings=(Warning("unused-source", "source 'x' is unused", 0),),
     )
+
+
+def _disk(identifier: str = "disk9", size: int = 64 * 1024**3) -> DiskInfo:
+    return DiskInfo(
+        identifier=identifier,
+        size=size,
+        label="SDCARD",
+        model="SanDisk Ultra",
+        protocol="USB",
+        internal=False,
+        removable=True,
+        ejectable=True,
+        whole=True,
+        serial="0123456789AB",
+    )
+
+
+def _builtin_sd(identifier: str = "disk5") -> DiskInfo:
+    return DiskInfo(
+        identifier=identifier,
+        size=DISK5_BYTES,
+        label="",
+        model="Built In SDXC Reader",
+        protocol="Secure Digital",
+        internal=True,
+        removable=True,
+        ejectable=True,
+        whole=True,
+    )
+
+
+def _assessment(
+    disk: DiskInfo,
+    *,
+    allowed: bool = True,
+    reason: str = "external removable disk",
+) -> DiskAssessment:
+    return DiskAssessment(
+        disk=disk,
+        allowed=allowed,
+        status="allowed" if allowed else "blocked",
+        reason=reason,
+    )
+
+
+def _patch_assess(
+    monkeypatch: pytest.MonkeyPatch,
+    assessments: list[DiskAssessment],
+) -> dict[str, bool]:
+    seen: dict[str, bool] = {}
+
+    def fake_assess(_runner: object, *, allow_builtin_sd: bool = False) -> list[DiskAssessment]:
+        seen["allow_builtin_sd"] = allow_builtin_sd
+        return list(assessments)
+
+    monkeypatch.setattr(cli_module, "assess_disks", fake_assess)
+    return seen
 
 
 def _patch(
@@ -190,6 +250,9 @@ def test_build_help_when_requested_lists_every_option() -> None:
         "--output",
         "--size",
         "--reserve",
+        "--device",
+        "--expand",
+        "--allow-builtin-sd",
         "--offline",
         "--force",
         "--keep-work",
@@ -197,3 +260,216 @@ def test_build_help_when_requested_lists_every_option() -> None:
         "--json",
     ):
         assert option in result.stdout
+
+
+def test_build_expand_when_builtin_sd_forwards_exact_size(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = _manifest(tmp_path)
+    seen = _patch(monkeypatch, report=_report(tmp_path))
+    assessed = _patch_assess(monkeypatch, [_assessment(_builtin_sd())])
+
+    result = runner.invoke(
+        app,
+        [
+            "build",
+            "--manifest",
+            str(manifest),
+            "--device",
+            "/dev/disk5",
+            "--allow-builtin-sd",
+            "--expand",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stderr
+    assert seen["options"].size == "488156MiB"
+    assert assessed["allow_builtin_sd"] is True
+
+
+@pytest.mark.parametrize("device", ["disk5", "/dev/disk5", "/dev/rdisk5"])
+def test_build_expand_device_forms_normalize(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, device: str
+) -> None:
+    manifest = _manifest(tmp_path)
+    seen = _patch(monkeypatch, report=_report(tmp_path))
+    _patch_assess(monkeypatch, [_assessment(_builtin_sd())])
+
+    result = runner.invoke(
+        app,
+        [
+            "build",
+            "--manifest",
+            str(manifest),
+            "--device",
+            device,
+            "--allow-builtin-sd",
+            "--expand",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stderr
+    assert seen["options"].size == "488156MiB"
+
+
+def test_build_expand_when_size_is_not_mib_aligned_rounds_down(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = _manifest(tmp_path)
+    seen = _patch(monkeypatch, report=_report(tmp_path))
+    _patch_assess(
+        monkeypatch,
+        [_assessment(_disk(size=100 * MIB + 12_345))],
+    )
+
+    result = runner.invoke(
+        app,
+        [
+            "build",
+            "--manifest",
+            str(manifest),
+            "--device",
+            "disk9",
+            "--expand",
+        ],
+    )
+
+    assert result.exit_code == 0, result.stderr
+    assert seen["options"].size == "100MiB"
+
+
+@pytest.mark.parametrize(
+    ("extra_args", "message"),
+    [
+        (["--expand"], "--expand requires --device"),
+        (["--device", "/dev/disk9"], "--device is only valid with --expand"),
+        (
+            ["--size", "64MiB", "--device", "/dev/disk9", "--expand"],
+            "--size cannot be combined with --expand",
+        ),
+        (["--allow-builtin-sd"], "--allow-builtin-sd requires --device"),
+        (
+            ["--expand", "--allow-builtin-sd"],
+            "--allow-builtin-sd requires --device",
+        ),
+    ],
+)
+def test_build_expand_invalid_flag_combinations_exit_two(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    extra_args: list[str],
+    message: str,
+) -> None:
+    manifest = _manifest(tmp_path)
+    seen = _patch(monkeypatch, report=_report(tmp_path))
+    assessed = _patch_assess(monkeypatch, [_assessment(_disk())])
+
+    result = runner.invoke(
+        app,
+        ["build", "--manifest", str(manifest), *extra_args],
+    )
+
+    assert result.exit_code == 2
+    assert message in result.stderr
+    assert seen == {}
+    assert assessed == {}
+
+
+@pytest.mark.parametrize(
+    ("disk", "allow", "reason"),
+    [
+        (_disk("disk0"), True, "internal disk"),
+        (_disk("disk4"), False, "virtual disk"),
+        (_disk("disk10"), False, "boot disk"),
+        (_builtin_sd("disk5"), False, "internal SD reader"),
+    ],
+)
+def test_build_expand_when_disk_is_unsafe_exits_two(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    disk: DiskInfo,
+    allow: bool,
+    reason: str,
+) -> None:
+    manifest = _manifest(tmp_path)
+    seen = _patch(monkeypatch, report=_report(tmp_path))
+    _patch_assess(
+        monkeypatch,
+        [_assessment(disk, allowed=False, reason=reason)],
+    )
+    args = [
+        "build",
+        "--manifest",
+        str(manifest),
+        "--device",
+        disk.identifier,
+        "--expand",
+    ]
+    if allow:
+        args.append("--allow-builtin-sd")
+
+    result = runner.invoke(app, args)
+
+    assert result.exit_code == 2
+    assert reason in result.stderr
+    assert "image --list" in result.stderr
+    assert seen == {}
+
+
+def test_build_expand_when_device_is_unknown_exits_two(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = _manifest(tmp_path)
+    seen = _patch(monkeypatch, report=_report(tmp_path))
+    _patch_assess(monkeypatch, [_assessment(_disk())])
+
+    result = runner.invoke(
+        app,
+        [
+            "build",
+            "--manifest",
+            str(manifest),
+            "--device",
+            "/dev/disk99",
+            "--expand",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "not a whole disk" in result.stderr
+    assert "image --list" in result.stderr
+    assert seen == {}
+
+
+def test_build_expand_when_device_is_malformed_exits_two(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = _manifest(tmp_path)
+    seen = _patch(monkeypatch, report=_report(tmp_path))
+    _patch_assess(monkeypatch, [_assessment(_disk())])
+
+    result = runner.invoke(
+        app,
+        ["build", "--manifest", str(manifest), "--device", "rdisk5", "--expand"],
+    )
+
+    assert result.exit_code == 2
+    assert "invalid device" in result.stderr
+    assert seen == {}
+
+
+def test_build_expand_when_disk_is_too_small_exits_two(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = _manifest(tmp_path)
+    seen = _patch(monkeypatch, report=_report(tmp_path))
+    _patch_assess(monkeypatch, [_assessment(_disk(size=2 * MIB - 1))])
+
+    result = runner.invoke(
+        app,
+        ["build", "--manifest", str(manifest), "--device", "disk9", "--expand"],
+    )
+
+    assert result.exit_code == 2
+    assert "too small" in result.stderr
+    assert seen == {}

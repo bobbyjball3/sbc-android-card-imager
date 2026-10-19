@@ -21,6 +21,9 @@ from sbc_imager.sizes import format_size
 _SD_PROTOCOLS: Final[frozenset[str]] = frozenset({"Secure Digital", "SD Card"})
 _REMOVABLE_PROTOCOLS: Final[frozenset[str]] = frozenset({"USB"}) | _SD_PROTOCOLS
 _DISK_DEVICE: Final = re.compile(r"(?:/dev/r?)?(disk\d+)")
+_MIB: Final = 1024 * 1024
+_MIN_FULL_DISK_IMAGE: Final = 2 * _MIB
+LIST_HINT: Final = "run `sbc-imager image --list` to inspect every whole disk and its reason"
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,6 +75,35 @@ def normalize_disk_identifier(raw: str) -> str:
             hint="run `sbc-imager image --list` to see the available whole disks",
         )
     return match.group(1)
+
+
+def full_disk_image_size(disk_size: int) -> int:
+    """Return the largest 1 MiB-aligned image that fits on ``disk_size``."""
+    image_bytes = (disk_size // _MIB) * _MIB
+    if image_bytes < _MIN_FULL_DISK_IMAGE:
+        raise SafetyError(
+            f"disk is too small to expand: {disk_size} bytes",
+            hint="need at least 2 MiB of disk space",
+        )
+    return image_bytes
+
+
+def resolve_explicit_disk(assessments: Sequence[DiskAssessment], raw: str) -> DiskInfo:
+    """Return the safe whole disk named by ``raw`` or refuse it."""
+    identifier = normalize_disk_identifier(raw)
+    for assessment in assessments:
+        if assessment.disk.identifier != identifier:
+            continue
+        if not assessment.allowed:
+            raise SafetyError(
+                f"refusing {raw}; {identifier} is not a safe target: {assessment.reason}",
+                hint=LIST_HINT,
+            )
+        return assessment.disk
+    raise SafetyError(
+        f"refusing {raw}; {identifier} is not a whole disk reported by diskutil",
+        hint=LIST_HINT,
+    )
 
 
 def enumerate_disks(runner: Runner, *, allow_builtin_sd: bool = False) -> list[DiskInfo]:

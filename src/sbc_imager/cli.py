@@ -23,6 +23,7 @@ from sbc_imager.cli_image import register as register_image
 from sbc_imager.cli_verify import register as register_verify
 from sbc_imager.config import Manifest, load_manifest
 from sbc_imager.errors import ConfigError, SbcImagerError
+from sbc_imager.imaging import assess_disks, full_disk_image_size, resolve_explicit_disk
 from sbc_imager.planner import (
     BuildPlan,
     build_plan,
@@ -35,6 +36,8 @@ from sbc_imager.sizes import format_size
 from sbc_imager.sources import ResolvedSource, SourceCache, resolve_git, resolve_http, resolve_local
 from sbc_imager.sources_github import resolve_github
 from sbc_imager.validation import Warning
+
+_MIB = 1024 * 1024
 
 
 @dataclass(frozen=True, slots=True)
@@ -276,8 +279,24 @@ def build(
         Path, typer.Option("--manifest", exists=True, dir_okay=False, help="Manifest path.")
     ],
     output: Annotated[Path | None, typer.Option("--output", help="Output image path.")] = None,
-    size: Annotated[str | None, typer.Option("--size", help="Image size or auto.")] = None,
+    size: Annotated[
+        str | None,
+        typer.Option("--size", help="Image size or auto; cannot be combined with --expand."),
+    ] = None,
     reserve: Annotated[str | None, typer.Option("--reserve", help="Free space reserve.")] = None,
+    device: Annotated[
+        str | None,
+        typer.Option(
+            "--device",
+            help="Target disk to size from: diskN, /dev/diskN, or /dev/rdiskN. Requires --expand.",
+        ),
+    ] = None,
+    expand: bool = typer.Option(
+        False, "--expand", help="Size the image to the --device disk; never writes it."
+    ),
+    allow_builtin_sd: bool = typer.Option(
+        False, "--allow-builtin-sd", help="Permit an internal SD reader with --device."
+    ),
     offline: bool = typer.Option(False, "--offline"),
     force: bool = typer.Option(False, "--force"),
     keep_work: bool = typer.Option(False, "--keep-work"),
@@ -289,10 +308,35 @@ def build(
     def log(line: str) -> None:
         typer.echo(line, err=True)
 
+    if size is not None and expand:
+        raise ConfigError(
+            "--size cannot be combined with --expand",
+            hint="remove --size; the --device disk determines the size",
+        )
+    if allow_builtin_sd and device is None:
+        raise ConfigError(
+            "--allow-builtin-sd requires --device",
+            hint="select a target with --device /dev/diskN",
+        )
+    if expand and device is None:
+        raise ConfigError("--expand requires --device", hint="pass --device /dev/diskN")
+    if device is not None and not expand:
+        raise ConfigError(
+            "--device is only valid with --expand",
+            hint="add --expand to size the image; build never writes the device",
+        )
+
+    effective_size = size
+    if expand:
+        assert device is not None
+        assessments = assess_disks(SubprocessRunner(), allow_builtin_sd=allow_builtin_sd)
+        disk = resolve_explicit_disk(assessments, device)
+        effective_size = f"{full_disk_image_size(disk.size) // _MIB}MiB"
+
     options = BuildOptions(
         manifest_path=manifest_path,
         output=output,
-        size=size,
+        size=effective_size,
         reserve=reserve,
         offline=offline,
         force=force,

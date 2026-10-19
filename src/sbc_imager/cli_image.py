@@ -13,13 +13,13 @@ from rich.console import Console
 from sbc_imager.errors import ConfigError, SafetyError
 from sbc_imager.fs import sha256_file
 from sbc_imager.imaging import (
-    DiskAssessment,
+    LIST_HINT,
     DiskInfo,
     assess_disks,
     enumerate_disks,
-    normalize_disk_identifier,
     render_assessment_table,
     render_table,
+    resolve_explicit_disk,
     write_image,
 )
 from sbc_imager.imaging_write import WriteResult, validate_target
@@ -32,7 +32,6 @@ _ROOT_HINT: Final = "sudo -E uv run sbc-imager image ..."
 _NO_DISKS: Final = (
     "no safe removable disks found; run `sbc-imager image --list` to inspect every disk"
 )
-_LIST_HINT: Final = "run `sbc-imager image --list` to inspect every whole disk and its reason"
 
 
 def _prompt_line(message: str) -> str:
@@ -56,23 +55,6 @@ def _select_disk(disks: Sequence[DiskInfo]) -> DiskInfo:
             f"disk selection {number} is out of range 1-{len(disks)}; aborting without writing"
         )
     return disks[number - 1]
-
-
-def _select_explicit_device(assessments: Sequence[DiskAssessment], raw: str) -> DiskInfo:
-    identifier = normalize_disk_identifier(raw)
-    for assessment in assessments:
-        if assessment.disk.identifier != identifier:
-            continue
-        if not assessment.allowed:
-            raise SafetyError(
-                f"refusing {raw}; {identifier} is not a safe target: {assessment.reason}",
-                hint=_LIST_HINT,
-            )
-        return assessment.disk
-    raise SafetyError(
-        f"refusing {raw}; {identifier} is not a whole disk reported by diskutil",
-        hint=_LIST_HINT,
-    )
 
 
 def _render_warning(console: Console, disk: DiskInfo) -> None:
@@ -181,13 +163,13 @@ def register(app: typer.Typer, handle_errors: Handler) -> None:
 
         if device is not None:
             assessments = assess_disks(runner, allow_builtin_sd=allow_builtin_sd)
-            disk = _select_explicit_device(assessments, device)
+            disk = resolve_explicit_disk(assessments, device)
             if not dry_run and os.geteuid() != 0:
                 raise SafetyError("writing a card image requires root", hint=_ROOT_HINT)
         else:
             disks = enumerate_disks(runner)
             if not disks:
-                raise SafetyError(_NO_DISKS, hint=_LIST_HINT)
+                raise SafetyError(_NO_DISKS, hint=LIST_HINT)
             if not dry_run and os.geteuid() != 0:
                 raise SafetyError("writing a card image requires root", hint=_ROOT_HINT)
             render_table(console, disks)
