@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from sbc_imager import assembler
+from sbc_imager import assembler, assembler_steps
 from sbc_imager.assembler import (
     Report,
     assemble,
@@ -448,7 +448,38 @@ def test_assemble_when_umount_fails_lazy_unmount_and_detach_clean_up(
     assert not Path(str(out) + ".partial").exists()
 
 
-def test_assemble_when_loop_cannot_be_detached_raises_cleanup_error(
+def test_assemble_when_unmount_persists_and_autoclear_detach_succeeds_raises_cleanup_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stage_dir, plan_path, out = _fixture(tmp_path)
+    out.parent.mkdir(parents=True)
+    work = tmp_path / "work"
+    monkeypatch.setattr(assembler_steps.os.path, "ismount", lambda path: True)
+    runner = _TamperingRunner(
+        [
+            _ok(stdout=LOOP + "\n"),
+            _ok(),
+            _ok(),
+            _ok(),
+            _ok(),
+            _ok(),
+            _fail(stderr="target is busy"),
+            _fail(stderr="lazy target is busy"),
+            _ok(),
+        ],
+        work / "mnt",
+    )
+
+    with pytest.raises(AssemblerError, match="cleanup incomplete") as caught:
+        assemble(stage_dir, plan_path, out, work, runner)
+
+    assert LOOP in str(caught.value)
+    assert str(work / "mnt") in str(caught.value)
+    assert not out.exists()
+    assert not Path(str(out) + ".partial").exists()
+
+
+def test_assemble_when_mount_is_gone_but_detach_fails_raises_cleanup_error(
     tmp_path: Path,
 ) -> None:
     stage_dir, plan_path, out = _fixture(tmp_path)
@@ -462,18 +493,16 @@ def test_assemble_when_loop_cannot_be_detached_raises_cleanup_error(
             _ok(),
             _ok(),
             _ok(),
-            _fail(stderr="target is busy"),
-            _fail(stderr="lazy target is busy"),
+            _ok(),
             _fail(stderr="device is busy"),
         ],
         work / "mnt",
     )
 
-    with pytest.raises(AssemblerError, match="still attached") as caught:
+    with pytest.raises(AssemblerError, match="could not be detached") as caught:
         assemble(stage_dir, plan_path, out, work, runner)
 
     assert LOOP in str(caught.value)
-    assert str(work / "mnt") in str(caught.value)
     assert not out.exists()
     assert not Path(str(out) + ".partial").exists()
 

@@ -50,7 +50,7 @@ jobs:
         run: task test
       - name: Install exFAT tools
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y exfatprogs
+        run: sudo apt-get update && sudo apt-get install -y exfatprogs fdisk
       - name: Integration tests
         if: runner.os == 'Linux'
         run: sudo -E env "PATH=$PATH" uv run pytest -m integration -q

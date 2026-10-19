@@ -26,7 +26,6 @@ from sbc_imager.assembler_steps import (
     attach_loop,
     check_filesystem,
     cleanup,
-    detach_loop,
     make_filesystem,
     mount_filesystem,
     populate,
@@ -126,9 +125,8 @@ def assemble(
         )
         report.report_path.write_bytes(report_bytes(report))
 
-        unmount(runner, mountpoint)
+        cleanup(runner, MountState(mountpoint, loop, True))
         mounted = False
-        detach_loop(runner, loop)
         loop = None
         _publish(image, Path(out_path))
         return report

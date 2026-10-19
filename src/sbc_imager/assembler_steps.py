@@ -90,22 +90,36 @@ def lazy_unmount(runner: Runner, mountpoint: Path) -> None:
 
 
 def cleanup(runner: Runner, state: MountState) -> None:
-    """Release the mount and loop, escalating loudly when the loop survives."""
-    if state.mounted:
+    """Release the mount and loop, refusing to hide a leftover mount."""
+    mountpoint = state.mountpoint
+    loop = state.loop
+    unmount_error: AssemblerError | None = None
+    if state.mounted or os.path.ismount(mountpoint):
         try:
-            unmount(runner, state.mountpoint)
-        except AssemblerError:
+            unmount(runner, mountpoint)
+        except AssemblerError as exc:
+            unmount_error = exc
             with suppress(AssemblerError):
-                lazy_unmount(runner, state.mountpoint)
-    if state.loop is None:
+                lazy_unmount(runner, mountpoint)
+    if os.path.ismount(mountpoint):
+        if loop is not None:
+            with suppress(AssemblerError):
+                detach_loop(runner, loop)
+        if os.path.ismount(mountpoint):
+            target = f" (loop device {loop})" if loop is not None else ""
+            raise AssemblerError(
+                f"cleanup incomplete: {mountpoint} is still mounted{target}",
+                hint="unmount the path and detach the loop before retrying",
+            ) from unmount_error
+        return
+    if loop is None:
         return
     try:
-        detach_loop(runner, state.loop)
+        detach_loop(runner, loop)
     except AssemblerError as exc:
         raise AssemblerError(
-            f"cleanup failed: loop device {state.loop} is still attached; "
-            f"unmount {state.mountpoint} and run 'losetup -d {state.loop}'",
-            hint="a mounted loop device was left behind; inspect it before retrying",
+            f"cleanup failed: loop device {loop} could not be detached",
+            hint=f"{mountpoint} was unmounted; detach the loop before retrying",
         ) from exc
 
 
