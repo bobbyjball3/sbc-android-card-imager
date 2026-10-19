@@ -7,10 +7,11 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-import sbc_imager.cli as cli_module
+import sbc_imager.cli_image as cli_module
 from sbc_imager.cli import app
 from sbc_imager.imaging import DiskInfo
 from sbc_imager.imaging_write import WriteResult
+from sbc_imager.runner import Runner
 
 runner = CliRunner()
 
@@ -60,13 +61,13 @@ def _patch(
     disks: list[DiskInfo],
     *,
     interrupt: bool = False,
-) -> list[tuple[Path, DiskInfo, object]]:
-    calls: list[tuple[Path, DiskInfo, object]] = []
+) -> list[tuple[Path, DiskInfo, Runner]]:
+    calls: list[tuple[Path, DiskInfo, Runner]] = []
 
-    def fake_enumerate(_runner: object) -> list[DiskInfo]:
+    def fake_enumerate(_runner: Runner) -> list[DiskInfo]:
         return list(disks)
 
-    def fake_write(image_path: Path, disk: DiskInfo, system_runner: object) -> WriteResult:
+    def fake_write(image_path: Path, disk: DiskInfo, system_runner: Runner) -> WriteResult:
         calls.append((image_path, disk, system_runner))
         if interrupt:
             raise KeyboardInterrupt

@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import functools
 import json
-import os
 import sys
 import traceback
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated
@@ -20,12 +19,10 @@ from rich.table import Table
 from sbc_imager import __version__
 from sbc_imager.build import BuildOptions, build_image
 from sbc_imager.cannoli import PLATFORM_TAGS
+from sbc_imager.cli_image import register as register_image
 from sbc_imager.cli_verify import register as register_verify
 from sbc_imager.config import Manifest, load_manifest
-from sbc_imager.errors import ConfigError, SafetyError, SbcImagerError
-from sbc_imager.fs import sha256_file
-from sbc_imager.imaging import DiskInfo, enumerate_disks, render_table, write_image
-from sbc_imager.imaging_write import WriteResult
+from sbc_imager.errors import ConfigError, SbcImagerError
 from sbc_imager.planner import BuildPlan, build_plan, plan_payload, source_rows
 from sbc_imager.runner import SubprocessRunner
 from sbc_imager.sizes import format_size
@@ -43,7 +40,7 @@ def _version_callback(value: bool) -> None:
         raise typer.Exit()
 
 
-def _verbose_from(args: tuple[object, ...], kwargs: Mapping[str, object]) -> bool:
+def _verbose_from[**P](*args: P.args, **kwargs: P.kwargs) -> bool:
     for value in (*args, *kwargs.values()):
         state = getattr(value, "obj", None)
         if isinstance(state, AppState):
@@ -65,7 +62,7 @@ def _handle_errors[**P, R](func: Callable[P, R]) -> Callable[P, R]:
         try:
             return func(*args, **kwargs)
         except SbcImagerError as error:
-            _report_error(error, verbose=_verbose_from(args, kwargs))
+            _report_error(error, verbose=_verbose_from(*args, **kwargs))
             raise typer.Exit(error.exit_code) from None
 
     return wrapper
@@ -286,114 +283,5 @@ def build(
         typer.echo(f"Warning: {warning.code}: {warning.message}")
 
 
-_ROOT_HINT = "sudo -E uv run sbc-imager image ..."
-_NO_DISKS = "no safe removable disks found; connect a USB card reader"
-
-
-def _prompt_line(message: str) -> str:
-    try:
-        value = typer.prompt(message, default="", show_default=False)
-    except typer.Abort:
-        return ""
-    return str(value)
-
-
-def _select_disk(disks: Sequence[DiskInfo]) -> DiskInfo:
-    raw = _prompt_line(f"Select a disk [1-{len(disks)}]").strip()
-    if not raw:
-        raise SafetyError("no disk selected; aborting without writing")
-    try:
-        number = int(raw)
-    except ValueError:
-        raise SafetyError(f"invalid disk selection {raw!r}; aborting without writing") from None
-    if not 1 <= number <= len(disks):
-        raise SafetyError(
-            f"disk selection {number} is out of range 1-{len(disks)}; aborting without writing"
-        )
-    return disks[number - 1]
-
-
-def _render_warning(console: Console, disk: DiskInfo) -> None:
-    console.print(
-        "[bold red]DESTRUCTIVE OPERATION[/bold red]: "
-        "every byte on the selected card will be overwritten."
-    )
-    console.print(f"Device: {disk.identifier} (/dev/r{disk.identifier})")
-    if disk.label:
-        console.print(f"Label: {disk.label}")
-    if disk.model:
-        console.print(f"Model: {disk.model}")
-    console.print(f"Size: {disk.size} bytes ({format_size(disk.size)})")
-    if disk.protocol:
-        console.print(f"Protocol: {disk.protocol}")
-    if disk.serial:
-        console.print(f"Serial: {disk.serial}")
-
-
-def _require_confirmation(disk: DiskInfo) -> None:
-    expected = f"ERASE {disk.identifier}"
-    typed = _prompt_line(f"Type exactly '{expected}' to continue")
-    if typed != expected:
-        raise SafetyError(
-            "confirmation did not match; aborting without writing",
-            hint=f"Nothing was written. Re-run and type exactly: {expected}",
-        )
-
-
-def _print_dry_run(console: Console, image_path: Path, disk: DiskInfo) -> None:
-    total = image_path.stat().st_size
-    digest = sha256_file(image_path)
-    console.print("[bold]Dry run[/bold]: no data will be written.")
-    console.print(f"Device: {disk.identifier} (/dev/r{disk.identifier})")
-    if disk.model:
-        console.print(f"Model: {disk.model}")
-    console.print(f"Disk size: {disk.size} bytes ({format_size(disk.size)})")
-    console.print(f"Image: {image_path}")
-    console.print(f"Image size: {total} bytes ({format_size(total)})")
-    console.print(f"Image SHA-256: {digest}")
-
-
-def _print_write_summary(console: Console, result: WriteResult) -> None:
-    console.print(f"Device: {result.device}")
-    console.print(f"Bytes written: {result.bytes_written} ({format_size(result.bytes_written)})")
-    console.print(f"Duration: {result.duration_s:.2f}s")
-    console.print(f"Average speed: {format_size(int(result.avg_bytes_per_s))}/s")
-    console.print(f"Image SHA-256: {result.image_sha256}")
-
-
-@app.command()
-@_handle_errors
-def image(
-    ctx: typer.Context,
-    image_path: Annotated[
-        Path, typer.Option("--image", exists=True, dir_okay=False, help="Image to flash.")
-    ],
-    dry_run: bool = typer.Option(
-        False, "--dry-run", help="Show the target and image details without writing."
-    ),
-) -> None:
-    """Flash a verified image to a removable card after typed confirmation."""
-    runner = SubprocessRunner()
-    disks = enumerate_disks(runner)
-    if not disks:
-        raise SafetyError(_NO_DISKS)
-    if not dry_run and os.geteuid() != 0:
-        raise SafetyError("writing a card image requires root", hint=_ROOT_HINT)
-
-    console = Console()
-    render_table(console, disks)
-    disk = _select_disk(disks)
-    if dry_run:
-        _print_dry_run(console, image_path, disk)
-        return
-
-    _render_warning(console, disk)
-    _require_confirmation(disk)
-    try:
-        result = write_image(image_path, disk, runner)
-    except KeyboardInterrupt:
-        raise typer.Exit(130) from None
-    _print_write_summary(console, result)
-
-
+register_image(app, _handle_errors)
 register_verify(app, _handle_errors)
