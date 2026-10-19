@@ -8,14 +8,27 @@ import sys
 import traceback
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Annotated
 
+import httpx
 import typer
 from rich.console import Console
 from rich.table import Table
 
 from sbc_imager import __version__
 from sbc_imager.cannoli import PLATFORM_TAGS
+from sbc_imager.config import Manifest, load_manifest
 from sbc_imager.errors import ConfigError, SbcImagerError
+from sbc_imager.planner import BuildPlan, build_plan, plan_payload, source_rows
+from sbc_imager.runner import SubprocessRunner
+from sbc_imager.sources import (
+    ResolvedSource,
+    SourceCache,
+    resolve_git,
+    resolve_http,
+    resolve_local,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,6 +85,78 @@ def _not_implemented(command: str, target: str) -> None:
     )
 
 
+def _human_size(size: int) -> str:
+    value = float(size)
+    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
+        if value < 1024 or unit == "TiB":
+            return f"{value:.0f} {unit}" if unit == "B" else f"{value:.1f} {unit}"
+        value /= 1024
+    return f"{size} B"
+
+
+def _resolve_sources(
+    manifest: Manifest,
+    client: httpx.Client,
+    *,
+    referenced_only: bool,
+    offline: bool,
+    allow_branch: bool,
+) -> dict[str, ResolvedSource]:
+    cache, runner = SourceCache(), SubprocessRunner()
+    entries = (*manifest.overlays, *manifest.shaders)
+    wanted = (
+        {entry.source for entry in entries if entry.source is not None}
+        if referenced_only
+        else {source.id for source in manifest.sources}
+    )
+    git_options = {"offline": offline, "allow_branch": allow_branch}
+    resolved: dict[str, ResolvedSource] = {}
+    for source in manifest.sources:
+        if source.id not in wanted:
+            continue
+        kind = source.type.casefold()
+        if kind == "git":
+            resolved[source.id] = resolve_git(source, cache, runner, **git_options)
+        elif kind in {"http", "https", "url"}:
+            resolved[source.id] = resolve_http(source, cache, client, offline=offline)
+        elif kind == "local":
+            path = Path(source.url).expanduser()
+            resolved[source.id] = resolve_local(
+                path if path.is_absolute() else manifest.base_dir / path, source.id
+            )
+        else:
+            raise ConfigError(f"unsupported source type '{source.type}' for '{source.id}'")
+    return resolved
+
+
+def _print_plan(plan: BuildPlan) -> None:
+    console = Console()
+    table = Table("Destination", "Kind", "Size")
+    for entry in plan.entries:
+        table.add_row(entry.dest.as_posix(), entry.kind, _human_size(entry.size))
+    console.print(table)
+    console.print(
+        f"Content: {_human_size(plan.content_bytes)}  "
+        f"Overhead: {_human_size(plan.overhead_bytes)}  "
+        f"Reserve: {_human_size(plan.reserve_bytes)}"
+    )
+    console.print(
+        f"Partition: {_human_size(plan.partition_bytes)} at offset "
+        f"{_human_size(plan.partition_offset_bytes)}  "
+        f"Image: {_human_size(plan.image_bytes)}"
+    )
+    for warning in plan.warnings:
+        where = "" if warning.entry_index is None else f" [{warning.entry_index}]"
+        console.print(f"Warning{where}: {warning.code}: {warning.message}")
+
+
+def _print_sources(sources: tuple[ResolvedSource, ...]) -> None:
+    table = Table("ID", "Type", "Root")
+    for source in sources:
+        table.add_row(source.id, source.kind, str(source.root))
+    Console().print(table)
+
+
 app = typer.Typer(
     name="sbc-imager",
     help="Build and flash Cannoli-ready SD card images for Android SBC devices.",
@@ -90,12 +175,7 @@ def main(
         is_eager=True,
         callback=_version_callback,
     ),
-    verbose: bool = typer.Option(
-        False,
-        "--verbose",
-        "-v",
-        help="Enable verbose output.",
-    ),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable verbose output."),
 ) -> None:
     """Build and flash Cannoli-ready SD card images for Android SBC devices.
 
@@ -108,11 +188,7 @@ def main(
 @_handle_errors
 def platforms(
     ctx: typer.Context,
-    json_output: bool = typer.Option(
-        False,
-        "--json",
-        help="Print the platform registry as JSON.",
-    ),
+    json_output: bool = typer.Option(False, "--json", help="Print the platform registry as JSON."),
 ) -> None:
     """List every Cannoli platform tag and its display name."""
     rows = _platform_rows()
@@ -129,16 +205,71 @@ def platforms(
 
 @app.command()
 @_handle_errors
-def plan(ctx: typer.Context) -> None:
-    """Plan the card build from a manifest (not implemented yet)."""
-    _not_implemented("plan", "todo 12")
+def plan(
+    ctx: typer.Context,
+    manifest_path: Annotated[
+        Path, typer.Option("--manifest", exists=True, dir_okay=False, help="Manifest path.")
+    ],
+    offline: bool = typer.Option(False, "--offline"),
+    strict: bool = typer.Option(False, "--strict"),
+    json_output: bool = typer.Option(False, "--json"),
+    allow_branch: bool = typer.Option(False, "--allow-branch"),
+) -> None:
+    """Resolve sources, size the image, and print the planned card tree."""
+    manifest = load_manifest(manifest_path)
+    client = httpx.Client(follow_redirects=True, timeout=30.0)
+    try:
+        resolved = _resolve_sources(
+            manifest,
+            client,
+            referenced_only=True,
+            offline=offline,
+            allow_branch=allow_branch,
+        )
+    finally:
+        client.close()
+    build = build_plan(manifest, resolved)
+    if strict and build.warnings:
+        first = build.warnings[0]
+        raise ConfigError(
+            f"strict-warnings: {len(build.warnings)} warning(s); "
+            f"first is {first.code}: {first.message}"
+        )
+    if json_output:
+        typer.echo(json.dumps(plan_payload(build)))
+        return
+    _print_plan(build)
 
 
 @app.command()
 @_handle_errors
-def fetch(ctx: typer.Context) -> None:
-    """Populate the source cache (not implemented yet)."""
-    _not_implemented("fetch", "todo 12")
+def fetch(
+    ctx: typer.Context,
+    manifest_path: Annotated[
+        Path, typer.Option("--manifest", exists=True, dir_okay=False, help="Manifest path.")
+    ],
+    offline: bool = typer.Option(False, "--offline"),
+    json_output: bool = typer.Option(False, "--json"),
+    allow_branch: bool = typer.Option(False, "--allow-branch"),
+) -> None:
+    """Populate the source cache from every declared source."""
+    manifest = load_manifest(manifest_path)
+    client = httpx.Client(follow_redirects=True, timeout=30.0)
+    try:
+        resolved = _resolve_sources(
+            manifest,
+            client,
+            referenced_only=False,
+            offline=offline,
+            allow_branch=allow_branch,
+        )
+    finally:
+        client.close()
+    sources = tuple(resolved[source.id] for source in manifest.sources if source.id in resolved)
+    if json_output:
+        typer.echo(json.dumps(source_rows(sources)))
+        return
+    _print_sources(sources)
 
 
 @app.command()

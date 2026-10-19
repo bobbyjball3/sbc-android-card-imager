@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
 from sbc_imager.cannoli import (
@@ -25,6 +25,7 @@ class Destination:
     entry_index: int
     kind: str
     source_root: Path | None = None
+    src: Path | None = field(default=None, compare=False)
 
 
 def component(value: str, where: str) -> str:
@@ -65,9 +66,9 @@ def source_relative_path(path: Path, where: str) -> PurePosixPath:
 def _rom_destinations(manifest: Manifest) -> Iterator[Destination]:
     for index, entry in enumerate(manifest.roms):
         platform = tag(entry.platform, f"rom[{index}]")
-        for _, rel in entry_files(entry.path, entry.include, entry.exclude):
+        for path, rel in entry_files(entry.path, entry.include, entry.exclude):
             if not is_rom_junk(rel.name, platform):
-                yield Destination(rom_dir(platform) / rel, index, "rom", entry.path)
+                yield Destination(rom_dir(platform) / rel, index, "rom", entry.path, src=path)
 
 
 def _bios_destinations(manifest: Manifest) -> Iterator[Destination]:
@@ -75,19 +76,19 @@ def _bios_destinations(manifest: Manifest) -> Iterator[Destination]:
         platform = tag(entry.platform, f"bios[{index}]")
         if entry.path.is_file():
             name = component(entry.as_, f"bios[{index}]") if entry.as_ else entry.path.name
-            yield Destination(bios_dir(platform) / name, index, "bios", entry.path)
+            yield Destination(bios_dir(platform) / name, index, "bios", entry.path, src=entry.path)
         else:
             if entry.as_ is not None:
                 component(entry.as_, f"bios[{index}]")
-            for _, rel in entry_files(entry.path):
-                yield Destination(bios_dir(platform) / rel, index, "bios", entry.path)
+            for path, rel in entry_files(entry.path):
+                yield Destination(bios_dir(platform) / rel, index, "bios", entry.path, src=path)
 
 
 def _art_destinations(manifest: Manifest) -> Iterator[Destination]:
     for index, entry in enumerate(manifest.art):
         platform = tag(entry.platform, f"art[{index}]")
-        for _, rel in entry_files(entry.path, entry.include, entry.exclude):
-            yield Destination(art_dir(platform) / rel, index, "art", entry.path)
+        for path, rel in entry_files(entry.path, entry.include, entry.exclude):
+            yield Destination(art_dir(platform) / rel, index, "art", entry.path, src=path)
 
 
 def _overlay_destinations(manifest: Manifest) -> Iterator[Destination]:
@@ -101,12 +102,12 @@ def _overlay_destinations(manifest: Manifest) -> Iterator[Destination]:
             yield Destination(base / name, index, "overlay", entry.path)
         elif entry.path.is_file():
             name = component(entry.as_, where) if entry.as_ else entry.path.name
-            yield Destination(base / name, index, "overlay", entry.path)
+            yield Destination(base / name, index, "overlay", entry.path, src=entry.path)
         else:
             prefix = PurePosixPath(component(entry.as_, where)) if entry.as_ else PurePosixPath()
-            for _, rel in entry_files(entry.path):
+            for path, rel in entry_files(entry.path):
                 if rel.suffix.casefold() == ".png":
-                    yield Destination(base / prefix / rel, index, "overlay", entry.path)
+                    yield Destination(base / prefix / rel, index, "overlay", entry.path, src=path)
 
 
 def _shader_destinations(manifest: Manifest) -> Iterator[Destination]:
@@ -117,17 +118,28 @@ def _shader_destinations(manifest: Manifest) -> Iterator[Destination]:
             name = component(entry.as_, where) if entry.as_ else relative.name
             if relative.suffix.casefold() == ".glslp":
                 yield Destination(
-                    shaders_dir() / PurePosixPath(name).stem / name, index, "shader", entry.path
+                    shaders_dir() / PurePosixPath(name).stem / name,
+                    index,
+                    "shader",
+                    entry.path,
                 )
             else:
                 yield Destination(shaders_dir() / name, index, "shader", entry.path)
         elif entry.path.is_file():
             name = component(entry.as_, where) if entry.as_ else entry.path.name
-            yield Destination(shaders_dir() / entry.path.stem / name, index, "shader", entry.path)
+            yield Destination(
+                shaders_dir() / entry.path.stem / name,
+                index,
+                "shader",
+                entry.path,
+                src=entry.path,
+            )
         else:
             preset = component(entry.as_, where) if entry.as_ else entry.path.name
-            for _, rel in entry_files(entry.path):
-                yield Destination(shaders_dir() / preset / rel, index, "shader", entry.path)
+            for path, rel in entry_files(entry.path):
+                yield Destination(
+                    shaders_dir() / preset / rel, index, "shader", entry.path, src=path
+                )
 
 
 def _apk_destinations(manifest: Manifest) -> Iterator[Destination]:
@@ -135,11 +147,11 @@ def _apk_destinations(manifest: Manifest) -> Iterator[Destination]:
         where = f"apk[{index}]"
         if entry.path.is_file():
             name = component(entry.as_, where) if entry.as_ else entry.path.name
-            yield Destination(apks_dir() / name, index, "apk", entry.path)
+            yield Destination(apks_dir() / name, index, "apk", entry.path, src=entry.path)
         else:
             prefix = PurePosixPath(component(entry.as_, where)) if entry.as_ else PurePosixPath()
-            for _, rel in entry_files(entry.path):
-                yield Destination(apks_dir() / prefix / rel, index, "apk", entry.path)
+            for path, rel in entry_files(entry.path):
+                yield Destination(apks_dir() / prefix / rel, index, "apk", entry.path, src=path)
 
 
 def _artifact_destinations(manifest: Manifest) -> Iterator[Destination]:
@@ -153,12 +165,12 @@ def _artifact_destinations(manifest: Manifest) -> Iterator[Destination]:
         )
         if entry.path.is_file():
             name = component(entry.as_, where) if entry.as_ else entry.path.name
-            yield Destination(base / name, index, "artifact", entry.path)
+            yield Destination(base / name, index, "artifact", entry.path, src=entry.path)
         else:
             if entry.as_ is not None:
                 component(entry.as_, where)
-            for _, rel in entry_files(entry.path):
-                yield Destination(base / rel, index, "artifact", entry.path)
+            for path, rel in entry_files(entry.path):
+                yield Destination(base / rel, index, "artifact", entry.path, src=path)
 
 
 def iter_destinations(manifest: Manifest) -> Iterator[Destination]:

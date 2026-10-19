@@ -40,11 +40,11 @@ def test_subcommand_help_when_requested_exits_zero(command: str) -> None:
     assert command in result.stdout
 
 
-def test_plan_when_invoked_reports_not_implemented_on_stderr() -> None:
+def test_plan_when_manifest_is_missing_exits_two() -> None:
     result = runner.invoke(app, ["plan"])
 
     assert result.exit_code == 2
-    assert "not implemented" in result.stderr.lower()
+    assert "manifest" in result.stderr.lower()
     assert result.stdout == ""
 
 
