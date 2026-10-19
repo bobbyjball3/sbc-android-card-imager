@@ -97,12 +97,16 @@ Git sources require a pinned `ref` (commit or tag; branches need `--allow-branch
 HTTP sources require a pinned lowercase `sha256`. The cache lives under the platform cache
 directory, can be overridden with `SBC_IMAGER_CACHE_DIR`, and supports `--offline`.
 Validation enforces Cannoli tags, exFAT-safe names, duplicate/colliding destinations, and
-required assets before anything is staged.
+required assets before anything is staged. A branch ref allowed with `--allow-branch` emits
+a `branch-ref` warning from `plan` and `fetch`; `plan --json` puts it in `warnings`, while
+`fetch --json` attaches it to the affected source row. Typed local root paths that are
+themselves symlinks are rejected before resolution; symlinked parent directories are allowed.
 
 ### Cannoli registry conventions
 Cannoli is pinned at **v1.9.1**, commit `7755e376b6add0bbd25ea19104c368b7a40b979f`.
 `src/sbc_imager/cannoli.py` is the runtime source of truth: `PLATFORM_TAGS` holds all 51
-tags with their display names, plus path builders and hard-required BIOS metadata. There
+tags with their display names, plus path builders and hard-required BIOS metadata. Its
+`SIZE_OK` marker records the intentional exemption for this pinned data table. There
 is no network access at runtime. `docs/cannoli-platform-tags.md` is generated from
 `render_markdown()` and a test asserts it matches the registry. To refresh the registry,
 fetch the pinned upstream `platforms.json` for the chosen release, update the pin
@@ -114,7 +118,9 @@ internal disks and the disk backing `/` are rejected. There is no `--device`, `-
 unattended mode: the operator selects a disk from the enumerated list, sees the
 model/size/serial warning, and must type exactly `ERASE <device>` before any write.
 Writes target only `/dev/rdisk<N>` (never `/dev/disk*`), require the image to fit, and
-require a successful `diskutil unmountDisk`. The command never auto-sudoes, never uses
+require a successful `diskutil unmountDisk`. `write_image` re-checks that the target is a
+whole, non-internal disk immediately before writing, even when enumeration already ran. The
+command never auto-sudoes, never uses
 `dd`, never formats or partitions, and never retries. `--dry-run` reports the target and
 image SHA-256 without writing. On interruption the card is left partially written with a
 loud warning and exit code 130; it is not repaired automatically.
@@ -124,8 +130,10 @@ Write tests first. `task test` runs the rootless unit suite, which uses the fake
 `Runner`/`SourceCache` seams and temporary directories instead of real subprocesses or
 devices. `task test:integration` is opt-in and runs the loop/mount/`fsck.exfat` paths on
 privileged Linux; it is skipped elsewhere. Coverage targets 85% and pre-commit runs ruff,
-pyright, and the unit suite. Fixtures must use tiny non-copyrighted placeholders - never
-real ROMs, BIOS files, or other copyrighted assets.
+pyright, and the unit suite. The assembler image pins every apt package to an exact
+bookworm version; refresh pins deliberately when the base digest changes. Fixtures must
+use tiny non-copyrighted placeholders - never real ROMs, BIOS files, or other copyrighted
+assets.
 
 ### Commit and co-author convention
 Follow the Global Rules: work on a conventional feature branch based on current `main`,
