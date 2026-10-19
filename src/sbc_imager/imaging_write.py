@@ -66,6 +66,16 @@ def write_image(
     outside ``/dev``; production callers must leave it as ``None``.
     """
     image = Path(image_path)
+    if not disk.whole:
+        raise SafetyError(
+            f"refusing to write to {disk.identifier}; it is not a whole disk",
+            hint="re-run image enumeration and select a whole removable disk",
+        )
+    if disk.internal:
+        raise SafetyError(
+            f"refusing to write to {disk.identifier}; it is an internal disk",
+            hint="select an external removable disk instead",
+        )
     if not dry_run and os.geteuid() != 0:
         raise SafetyError("writing a card image requires root", hint=_ROOT_HINT)
 

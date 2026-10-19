@@ -5,6 +5,7 @@ import inspect
 import os
 import stat
 from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -86,6 +87,26 @@ def test_write_image_when_image_fits_writes_exact_bytes_hash_and_progress(
     )
     assert reports[-1] == (size, size)
     assert runner.commands == [_UNMOUNT, _EJECT]
+
+
+@pytest.mark.parametrize(
+    ("internal", "whole", "expected"),
+    [(True, True, "internal"), (False, False, "whole")],
+)
+def test_write_image_when_target_disk_classification_is_unsafe_refuses(
+    tmp_path: Path, internal: bool, whole: bool, expected: str
+) -> None:
+    image = _image(tmp_path, b"card")
+    target = _target(tmp_path, size=4)
+    disk = replace(_disk(1024), internal=internal, whole=whole)
+    runner = FakeRunner()
+
+    with pytest.raises(SafetyError) as caught:
+        write_image(image, disk, runner, device_path=target, dry_run=True)
+
+    assert expected in caught.value.message
+    assert runner.calls == []
+    assert target.read_bytes() == b"\0" * 4
 
 
 def test_write_image_when_not_root_refuses_with_sudo_hint(
