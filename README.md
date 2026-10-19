@@ -148,7 +148,9 @@ as = "Obtainium.apk"
 
 The asset is selected by exact file name, its SHA-256/license/attribution are
 detected and cached, and it lands at `APKs/Obtainium.apk`. See
-[`examples/obtainium.toml`](examples/obtainium.toml).
+[`examples/obtainium.toml`](examples/obtainium.toml). A complete RG477M manifest
+with the pinned Obtainium APK, Obtainium Emulation Pack, and Tailscale import is
+in [`examples/rg477m/`](examples/rg477m/).
 
 Relative `path`, `output`, and local source `url` values resolve against the
 manifest's directory; `~` expands to your home directory. The bundled

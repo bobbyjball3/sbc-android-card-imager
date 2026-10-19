@@ -106,8 +106,10 @@ REST API, caches `source.json` plus the asset under `github/<key>/`, and support
 `--offline` for the exact pinned asset. `sha256`/`license`/`attribution` are
 optional overrides; never auto-pick an asset. APK entries may use `source = ...`
 with `as` instead of `path`, but only for a source that resolves to a single
-file; source APK directories are rejected. The cache lives under the platform
-cache directory, can be overridden with `SBC_IMAGER_CACHE_DIR`, and supports
+file; source APK directories are rejected. Single-file generic artifact entries
+may likewise use `source` with `as`, but `as` is required, `path` cannot also be
+set, and the source must resolve to exactly one file. The cache lives under the
+platform cache directory, can be overridden with `SBC_IMAGER_CACHE_DIR`, and supports
 `--offline`.
 Validation enforces Cannoli tags, exFAT-safe names, duplicate/colliding destinations, and
 required assets before anything is staged. A branch ref allowed with `--allow-branch` emits
