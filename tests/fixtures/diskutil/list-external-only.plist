@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>AllDisks</key>
+	<array>
+		<string>disk9</string>
+		<string>disk9s1</string>
+	</array>
+	<key>AllDisksAndPartitions</key>
+	<array>
+		<dict>
+			<key>Content</key>
+			<string>FDisk_partition_scheme</string>
+			<key>DeviceIdentifier</key>
+			<string>disk9</string>
+			<key>OSInternal</key>
+			<false/>
+			<key>Partitions</key>
+			<array>
+				<dict>
+					<key>Content</key>
+					<string>Microsoft Basic Data</string>
+					<key>DeviceIdentifier</key>
+					<string>disk9s1</string>
+					<key>Size</key>
+					<integer>63863308288</integer>
+				</dict>
+			</array>
+			<key>Size</key>
+			<integer>63864373248</integer>
+		</dict>
+	</array>
+	<key>VolumesFromDisks</key>
+	<array/>
+	<key>WholeDisks</key>
+	<array>
+		<string>disk9</string>
+	</array>
+</dict>
+</plist>

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>BusProtocol</key>
+	<string>USB</string>
+	<key>DeviceIdentifier</key>
+	<string>disk9</string>
+	<key>DeviceNode</key>
+	<string>/dev/disk9</string>
+	<key>Ejectable</key>
+	<true/>
+	<key>Internal</key>
+	<false/>
+	<key>MediaName</key>
+	<string>SanDisk Ultra</string>
+	<key>ParentWholeDisk</key>
+	<string>disk9</string>
+	<key>RemovableMedia</key>
+	<true/>
+	<key>Size</key>
+	<integer>63864373248</integer>
+	<key>VolumeName</key>
+	<string>SDCARD</string>
+	<key>Whole</key>
+	<true/>
+</dict>
+</plist>
