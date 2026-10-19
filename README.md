@@ -39,7 +39,7 @@ generated platform table.
 | Task | Requirements |
 | --- | --- |
 | Build | Python 3.12+, [uv](https://docs.astral.sh/uv/), and Docker (Docker Desktop or Colima) with privileged container support. Docker is required; there is no native macOS assembler. |
-| Imaging | macOS with `diskutil`, root access (`sudo`), and a USB card reader. Linux and Windows imaging are not supported. |
+| Imaging | macOS with `diskutil`, root access (`sudo`), and a USB card reader or, with explicit opt-in, an internal SD reader. Linux and Windows imaging are not supported. |
 | Verify | Docker, because the filesystem scan runs inside the pinned container. |
 | Development | Python 3.12+, uv, Task, and Docker for the end-to-end image test. |
 
@@ -81,11 +81,25 @@ sbc-imager build --manifest examples/imager.toml --size 66MiB
 # 5. Re-verify the published image against the manifest.
 sbc-imager verify --image dist/demo.img --manifest examples/imager.toml
 
-# 6. Show the selected card and image without writing.
+# 6. Inspect every whole disk and why it is or is not a safe target.
+sbc-imager image --list
+
+# 7. Show the selected card and image without writing.
 sbc-imager image --image dist/demo.img --dry-run
 
-# 7. Actually flash it. This is destructive and requires root.
+# 8. Actually flash it. This is destructive and requires root.
 sudo -E sbc-imager image --image dist/demo.img
+```
+
+An explicit target skips the interactive menu, but still requires the typed
+`ERASE <device>` confirmation before writing:
+
+```shell
+# External card reader.
+sudo -E sbc-imager image --image dist/demo.img --device /dev/disk9
+
+# Internal built-in SD reader: explicit device plus opt-in.
+sudo -E sbc-imager image --image dist/demo.img --device /dev/disk5 --allow-builtin-sd
 ```
 
 Without `--size`, the demo manifest sizes itself to 67 MiB (1 MiB partition
@@ -203,12 +217,20 @@ generated data, emulator cores, and app-private data are never included.
   cores, and settings on first launch.
 - **No native macOS assembler and no Windows support.** Image assembly always
   runs in the pinned Linux container.
-- **No `--device` flag and no unattended flashing.** Flashing is interactive,
-  requires root, lists only external removable whole disks, refuses internal and
-  virtual disks, shows model/size/protocol/serial when available, and requires
-  typing `ERASE <device>`. It unmounts, writes, syncs, and ejects.
-- **A USB card reader is required.** Built-in SD slots and internal disks are
-  not offered as targets.
+- **Explicit or interactive flashing, never unattended.** Flashing requires
+  root. `image --list` is read-only, needs no root or image, and shows every
+  whole disk with a safety status and reason. The command either prompts from
+  the safe list or accepts an explicit `--device diskN`, `/dev/diskN`, or
+  `/dev/rdiskN`; the target must resolve to a safe enumerated whole disk. It
+  shows model/size/protocol/serial when available and still requires typing
+  `ERASE <device>`. It unmounts, writes, syncs, and ejects. There is no `--yes`
+  or unattended mode.
+- **Internal disks are rejected unless explicitly opted in.** External
+  removable whole disks are the default. `--allow-builtin-sd` is valid only
+  with an explicit `--device` (or the read-only `--list` diagnostic) and permits
+  an internal disk only when it is a whole physical, removable or ejectable
+  `Secure Digital`/`SD Card` reader. It never permits the boot disk or a
+  non-removable internal disk. A USB card reader remains the default path.
 - **Flashing is destructive.** Every byte on the selected card is overwritten.
   Use `--dry-run` first. There is no multi-card batch mode, no compression, and
   no FAT32/ext4 option.

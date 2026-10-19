@@ -21,11 +21,19 @@ All commands accept the global `--verbose`/`-v` and `--help` options.
 | `sbc-imager fetch` | Populate the cache from every declared source. | `--manifest PATH`, `--offline`, `--json`, `--allow-branch` |
 | `sbc-imager build` | Fetch, stage, assemble, verify, and atomically publish an image. | `--manifest PATH`, `--output PATH`, `--size SIZE`, `--reserve SIZE`, `--offline`, `--force`, `--keep-work`, `--allow-branch`, `--json` |
 | `sbc-imager verify` | Re-verify an image tree against the manifest. | `--image PATH`, `--manifest PATH`, `--offline`, `--allow-branch`, `--json` |
-| `sbc-imager image` | Interactively flash a verified image on macOS. | `--image PATH`, `--dry-run` |
+| `sbc-imager image` | List disk targets or flash a verified image on macOS. | `--image PATH`, `--list`, `--device DEVICE`, `--allow-builtin-sd`, `--dry-run` |
 
-There is deliberately no `--device` option and no unattended flashing mode.
-`sbc-imager image` requires root only when it actually writes; `--dry-run` does
-not.
+`--list` is read-only, requires no root and no `--image`, and reports every
+whole disk with a safety status and reason. `--device` accepts `diskN`,
+`/dev/diskN`, or `/dev/rdiskN` and skips the interactive menu, but the target
+must still resolve to a safe enumerated whole disk and the typed
+`ERASE <device>` confirmation remains required for writes. Internal disks are
+rejected by default; `--allow-builtin-sd` is valid only with an explicit
+`--device` (or with `--list` for diagnostics) and permits only a whole physical,
+removable or ejectable internal `Secure Digital`/`SD Card` reader. It never
+permits the boot disk or a non-removable internal disk. There is no `--yes` or
+unattended flashing mode. `sbc-imager image` requires root only when it actually
+writes; `--list` and `--dry-run` do not.
 
 ## Path resolution
 

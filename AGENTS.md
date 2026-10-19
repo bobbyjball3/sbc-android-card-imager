@@ -51,7 +51,7 @@ Co-authored-by: DeepSeek - Flash 4.1 <deepseek@deepseek.com>
 `sbc-imager` turns one strict TOML manifest into a verified, flashable Cannoli-ready
 SD card image, then flashes that image to a removable card on macOS. The pipeline is:
 manifest -> pinned source cache -> staged `Cannoli/` tree -> containerized MBR+exFAT
-sparse image -> `fsck`/hash verification -> interactive raw-device write. The tool is
+sparse image -> `fsck`/hash verification -> explicit or interactive raw-device write. The tool is
 payload-only: it does not download ROMs, install APKs, or provide zero-touch first boot.
 
 ### Package layout
@@ -82,7 +82,7 @@ Run `task <name>` from the repository root:
 - `plan` - plan a card from `examples/imager.toml` without writing an image
 - `build` - build an image from the sample manifest
 - `verify` - verify `dist/demo.img` against the sample manifest
-- `image` - flash an image to a removable card interactively (macOS, `sudo`)
+- `image` - list disk targets (`--list`) or flash an image explicitly/interactively (macOS, `sudo`)
 - `ci` - local gate: `lint`, `test`, then `uv build`
 
 ### Manifest conventions
@@ -128,17 +128,24 @@ fetch the pinned upstream `platforms.json` for the chosen release, update the pi
 constants, `PLATFORM_TAGS`, the generated doc, and the tests together in one change.
 
 ### Image safety rules
-Imaging runs only on macOS and only against external, removable, whole physical disks;
-internal disks and the disk backing `/` are rejected. There is no `--device`, `--yes`, or
-unattended mode: the operator selects a disk from the enumerated list, sees the
-model/size/serial warning, and must type exactly `ERASE <device>` before any write.
-Writes target only `/dev/rdisk<N>` (never `/dev/disk*`), require the image to fit, and
-require a successful `diskutil unmountDisk`. `write_image` re-checks that the target is a
-whole, non-internal disk immediately before writing, even when enumeration already ran. The
-command never auto-sudoes, never uses
-`dd`, never formats or partitions, and never retries. `--dry-run` reports the target and
-image SHA-256 without writing. On interruption the card is left partially written with a
-loud warning and exit code 130; it is not repaired automatically.
+Imaging runs only on macOS. The default target set is external, removable, whole physical
+disks; internal disks and the disk backing `/` are rejected. `image --list` is read-only,
+needs no root or image, and reports every whole disk with a status and reason. The operator
+either selects from the safe enumerated list or passes an explicit `--device` (`diskN`,
+`/dev/diskN`, or `/dev/rdiskN`); the target must resolve to a safe enumerated whole disk.
+`--allow-builtin-sd` is valid only with an explicit `--device` (or with `--list` for
+diagnostics) and permits an internal disk only when it is whole, physical, removable or
+ejectable, and uses `Secure Digital`/`SD Card`. It never permits the boot disk or a
+non-removable internal disk. There is no `--yes` or unattended mode: the operator sees the
+model/size/serial warning and must type exactly `ERASE <device>` before any write, including
+with `--device`. Writes target only `/dev/rdisk<N>` (never `/dev/disk*`), require the image
+to fit, and require a successful `diskutil unmountDisk`. `write_image` takes
+`allow_internal` (default false) and re-checks boot, whole-disk, internal, and removable
+rules immediately before writing, even when enumeration already ran; the CLI validates
+explicit targets on dry-run too. The command never auto-sudoes, never uses `dd`, never
+formats or partitions, and never retries. `--dry-run` reports the target and image SHA-256
+without writing. On interruption the card is left partially written with a loud warning and
+exit code 130; it is not repaired automatically.
 
 ### Testing strategy
 Write tests first. `task test` runs the rootless unit suite, which uses the fake
