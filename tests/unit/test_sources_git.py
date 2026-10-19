@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,13 +18,6 @@ from tests.fakes import FakeRunner
 class BareRepo:
     path: Path
     commit: str
-
-
-@pytest.fixture(autouse=True)
-def _isolate_git_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    for key in list(os.environ):
-        if key.startswith("GIT_"):
-            monkeypatch.delenv(key, raising=False)
 
 
 def _git(cwd: Path, *args: str) -> str:

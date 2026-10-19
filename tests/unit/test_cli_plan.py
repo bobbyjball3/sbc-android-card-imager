@@ -67,13 +67,6 @@ LOCAL_FILES = (
 
 
 @pytest.fixture(autouse=True)
-def _isolate_git_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    for key in list(os.environ):
-        if key.startswith("GIT_"):
-            monkeypatch.delenv(key, raising=False)
-
-
-@pytest.fixture(autouse=True)
 def _cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     cache = tmp_path / "cache"
     monkeypatch.setenv("SBC_IMAGER_CACHE_DIR", str(cache))
