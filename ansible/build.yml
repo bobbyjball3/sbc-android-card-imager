@@ -1,0 +1,213 @@
+---
+# Stage the Cannoli payload tree and invoke the container builder.
+#
+# Data contract (ansible/vars/cannoli.yml): 17 base directories + 51 platform
+# Roms directories = the 68-directory Cannoli contract. The staged tree also
+# carries the Obtainium directory for device file destinations.
+#
+# Size resolution, in order:
+#   1. image_device (optional): read-only `diskutil info -plist` + `plutil`.
+#      The WholeDisk flag must be `true`; image_size_mib = TotalSize // 1 MiB.
+#   2. Otherwise image_size_mib comes from the device vars file or `-e`.
+#   3. Neither => the final assert fails. No block device is ever written.
+#
+# The container is the only task NOT tagged `payload` (it is tagged `image`):
+# payload tree + size + label in, `.img` out (container boundary, IS-4).
+#
+# Remote assets use `ansible.builtin.get_url` with `force: no`. GitHub release
+# URLs answer a 302 redirect to objects.githubusercontent.com; get_url follows
+# it. If a redirect/403 failure shows up, switch ONLY this task to
+# `ansible.builtin.uri` with `follow_redirects: all`.
+
+- name: Stage Cannoli payload and build card image
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    device: rg477m
+    payload_dir: build/payload
+    dist_dir: dist
+    image_output: "dist/{{ device }}.img"
+
+  vars_files:
+    - vars/cannoli.yml
+    - "vars/{{ device }}.yml"
+
+  tasks:
+    - name: Clean and recreate payload staging directory
+      ansible.builtin.file:
+        path: "{{ payload_dir }}"
+        state: "{{ item }}"
+        mode: "0755"
+      loop:
+        - absent
+        - directory
+      tags: payload
+
+    - name: Create Cannoli base directories
+      ansible.builtin.file:
+        path: "{{ payload_dir }}/{{ item }}"
+        state: directory
+        mode: "0755"
+      loop: "{{ cannoli_base_dirs }}"
+      tags: payload
+
+    - name: Create Cannoli platform ROM directories
+      ansible.builtin.file:
+        path: "{{ payload_dir }}/Cannoli/Roms/{{ item }}"
+        state: directory
+        mode: "0755"
+      loop: "{{ cannoli_tags }}"
+      tags: payload
+
+    - name: Create Obtainium directory for local file destinations
+      ansible.builtin.file:
+        path: "{{ payload_dir }}/Obtainium"
+        state: directory
+        mode: "0755"
+      tags: payload
+
+    - name: Write Cannoli settings marker file
+      ansible.builtin.copy:
+        content: "{}\n"
+        dest: "{{ payload_dir }}/{{ cannoli_settings_marker }}"
+        mode: "0644"
+      tags: payload
+
+    - name: Create remote asset destination directories
+      ansible.builtin.file:
+        path: "{{ payload_dir }}/{{ item.dest | dirname }}"
+        state: directory
+        mode: "0755"
+      loop: "{{ remote_assets }}"
+      when: (item.dest | dirname) | length > 0
+      tags: payload
+
+    - name: Download remote release assets
+      ansible.builtin.get_url:
+        url: "https://github.com/{{ item.repo }}/releases/download/{{ item.tag }}/{{ item.asset }}"
+        dest: "{{ payload_dir }}/{{ item.dest }}"
+        mode: "0644"
+        force: false
+        timeout: 120
+      loop: "{{ remote_assets }}"
+      tags: payload
+
+    - name: Create local file destination directories
+      ansible.builtin.file:
+        path: "{{ payload_dir }}/{{ item.dest | dirname }}"
+        state: directory
+        mode: "0755"
+      loop: "{{ local_files }}"
+      when: (item.dest | dirname) | length > 0
+      tags: payload
+
+    - name: Copy local payload files
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../{{ item.src }}"
+        dest: "{{ payload_dir }}/{{ item.dest }}"
+        mode: "0644"
+      loop: "{{ local_files }}"
+      tags: payload
+
+    - name: Copy local payload directories
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../{{ item.src }}"
+        dest: "{{ payload_dir }}/{{ item.dest }}"
+        mode: "0644"
+      loop: "{{ local_dirs }}"
+      tags: payload
+
+    - name: Resolve image size from target device (read-only)
+      when: image_device | default('') | length > 0
+      tags: payload
+      block:
+        - name: Query target device geometry
+          ansible.builtin.command: diskutil info -plist "{{ image_device }}"
+          register: diskutil_raw
+          changed_when: false
+          failed_when: false
+
+        - name: Ensure build directory exists
+          ansible.builtin.file:
+            path: build
+            state: directory
+            mode: "0755"
+
+        - name: Write device plist for parsing
+          ansible.builtin.copy:
+            content: "{{ diskutil_raw.stdout }}"
+            dest: build/disk.plist
+            mode: "0600"
+
+        - name: Extract whole-disk flag
+          ansible.builtin.command: plutil -extract WholeDisk raw -o - build/disk.plist
+          register: whole_raw
+          changed_when: false
+
+        - name: Assert target is a whole disk
+          ansible.builtin.assert:
+            that:
+              - whole_raw.stdout | trim == "true"
+            fail_msg: >-
+              Device {{ image_device }} is not a whole disk (WholeDisk flag is
+              not true); refusing to size the image from it.
+
+        - name: Extract total device size
+          ansible.builtin.command: plutil -extract TotalSize raw -o - build/disk.plist
+          register: size_raw
+          changed_when: false
+
+        - name: Compute image size in MiB
+          ansible.builtin.set_fact:
+            image_size_mib: "{{ (size_raw.stdout | trim | int) // 1048576 }}"
+
+    - name: Validate image size
+      ansible.builtin.assert:
+        that:
+          - image_size_mib is defined
+          - (image_size_mib | default(0) | int) >= 2
+        fail_msg: >-
+          image_size_mib must be defined and at least 2 MiB (got
+          '{{ image_size_mib | default("undefined") }}'). Pass -e
+          image_size_mib=N or -e image_device=/dev/diskN.
+      tags: payload
+
+    - name: Show resolved image size and output path
+      ansible.builtin.debug:
+        msg:
+          - "image_size_mib: {{ image_size_mib }}"
+          - "image_output: {{ image_output }}"
+      tags: payload
+
+    - name: Ensure distribution directory exists
+      ansible.builtin.file:
+        path: "{{ dist_dir }}"
+        state: directory
+        mode: "0755"
+      tags: payload
+
+    - name: Resolve host uid
+      ansible.builtin.command: id -u
+      register: host_uid
+      changed_when: false
+      tags: payload
+
+    - name: Resolve host gid
+      ansible.builtin.command: id -g
+      register: host_gid
+      changed_when: false
+      tags: payload
+
+    - name: Build card image in assembler container
+      ansible.builtin.command: >-
+        docker run --rm --privileged
+        -e HOST_UID={{ host_uid.stdout }}
+        -e HOST_GID={{ host_gid.stdout }}
+        -v {{ payload_dir | realpath }}:/payload:ro
+        -v {{ dist_dir | realpath }}:/out
+        sbc-imager-builder:local
+        /payload /out/{{ (image_output | basename) }} {{ image_size_mib }} {{ image_label }}
+      changed_when: true
+      tags: image
