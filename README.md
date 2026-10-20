@@ -232,9 +232,6 @@ Shell tests live in `tests/`:
 - `tests/smoke-image.sh` - offline 66 MiB tree-to-image smoke test of the
   builder: MBR layout, `fsck.exfat -n`, mounted contents, loop cleanup, and
   failure injection.
-- `tests/parity-rg477m.sh` - parity gate proving the Ansible pipeline's 128 MiB
-  RG477M image matches the old Python pipeline byte-for-byte except for
-  `CREDITS.md` (the old pipeline's only extra file).
 
 ## AI Disclosure
 

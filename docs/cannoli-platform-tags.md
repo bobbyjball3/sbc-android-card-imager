@@ -112,6 +112,5 @@ and update, in one change:
 1. `cannoli_tags` (and any changed base directories or the marker path) in
    `ansible/vars/cannoli.yml`;
 2. this document (tag table, base-dir list, BIOS notes);
-3. the test expectations: the derived counts in `tests/ansible-payload.sh`
-   (17 base, 51 tags, 70 directories) and the `BASE_DIRS` array in
-   `tests/parity-rg477m.sh`.
+3. the test expectations: the derived counts and base-directory checks in
+   `tests/ansible-payload.sh` (17 base, 51 tags, 70 directories).

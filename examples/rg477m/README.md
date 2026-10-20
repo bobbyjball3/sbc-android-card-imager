@@ -24,8 +24,8 @@ The device vars file pins two remote GitHub release assets plus one local file:
 
 The remote assets are downloaded by the playbook's `get_url` task from their
 exact GitHub release tags (`force: no`); there are no mutable selectors. The
-SHA-256 values above are asserted by the test suite (`tests/parity-rg477m.sh`)
-rather than by a runtime verifier. The pack is a JSON file, not an APK. None of
+SHA-256 values above are the pinned upstream reference rather than a value
+verified at runtime. The pack is a JSON file, not an APK. None of
 these files is vendored in this repository.
 
 ## Tailscale
@@ -163,9 +163,7 @@ The shell suite proves the payload contract and the builder, offline:
 ```shell
 bash tests/ansible-payload.sh   # staged-tree contract (70 dirs, 3 files, marker)
 bash tests/smoke-image.sh       # offline 66 MiB tree-to-image smoke test
-bash tests/parity-rg477m.sh     # 128 MiB parity gate vs the old Python pipeline
 ```
 
-`tests/parity-rg477m.sh` asserts the pinned SHA-256 values above (plus the
-3-byte settings marker) on the built image; it exists while the old Python
-pipeline is still present for comparison.
+The pinned SHA-256 values are documented above; there is no parity script
+anymore.

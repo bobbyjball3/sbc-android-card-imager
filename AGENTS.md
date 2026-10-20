@@ -131,7 +131,7 @@ tree is 70 directories total: 17 + 51 + the implicit `Cannoli/Media` parent (of 
 declared `Media/*` dirs) + `Obtainium` (destination of device `local_files`). There is no
 network access at runtime. To refresh the contract, update the pinned upstream
 `platforms.json` data into `cannoli_tags`, `docs/cannoli-platform-tags.md`, and the test
-expectations (`tests/ansible-payload.sh` counts, `tests/parity-rg477m.sh` `BASE_DIRS`)
+expectations (`tests/ansible-payload.sh` counts)
 together in one change. The old pipeline's `CREDITS.md` emission is gone; no payload
 builds it.
 
@@ -161,10 +161,6 @@ Write tests first. The suite is shell scripts in `tests/`:
   placeholder-byte fixture: exact image size, MBR start=2048/type=7, `fsck.exfat -n`
   clean, mounted content assertions, loop-device leak check, and invalid-input failure
   cases. All mounts run inside disposable privileged containers.
-- `tests/parity-rg477m.sh` - parity gate: builds the same 128 MiB RG477M image with the
-  old Python pipeline and the new Ansible pipeline and proves the listings match
-  (excluding `CREDITS.md`, which only the old pipeline writes), plus a failure-injection
-  check that the comparison can fail.
 Evidence is appended under `.omo/evidence/` (gitignored). No test writes a block device;
 fixtures use tiny non-copyrighted placeholder bytes - never real ROMs, BIOS files, or
 other copyrighted assets.
