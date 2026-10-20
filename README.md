@@ -5,246 +5,187 @@ device setup. Use or fork as you will - just keep it open source. I'll probably
 make this somewhat flexible, but my real target is myself, so it may not do what
 you want, how you want it.
 
-The tool turns a plain-text TOML manifest into a Cannoli-ready card image. It
-plans every destination, fetches pinned local/git/HTTPS/GitHub sources into a
-cache, stages the tree, assembles an uncompressed MBR + exFAT `.img` in a pinned
-Linux container, verifies the filesystem and every file hash, and can flash the
-result to a removable card on macOS.
+The tool turns a device vars file into a Cannoli-ready card image. Ansible
+stages the payload tree, a pinned Linux container assembles an uncompressed
+sparse MBR + exFAT `.img`, and then it stops. Writing that image to an SD card
+is deliberately **your** step, with `dd` or balenaEtcher - the tool no longer
+writes block devices at all.
 
 ## What it does
 
-- Reads a manifest describing overlays, shaders, APKs, and arbitrary extra
-  artifacts. ROMs, BIOS files, and box art are supplied by Cannoli/RomM and are
-  not manifest inputs.
-- Pins git refs and checksums HTTPS downloads, caches them content-addressed, and
-  supports `--offline` rebuilds.
+- Ansible (`ansible/build.yml`) stages a Cannoli payload tree from a
+  device vars file (`ansible/vars/<device>.yml`). ROMs, BIOS files, and box art
+  are supplied by Cannoli/RomM and are not inputs.
 - Creates the full Cannoli v1.9.1 layout: all 51 `Cannoli/Roms/<TAG>` folders,
-  the `Cannoli/Config/settings.json` `{}` install marker, `APKs/` at the card
-  root, and `CREDITS.md`.
-- Refuses invalid manifests before writing image bytes: unknown tags, bad exFAT
-  names, case/NFC collisions, duplicate destinations, symlinks in local typed
-  paths, and oversize content all fail early.
-- Verifies the built image with `fsck.exfat -n`, a directory check, and a
-  per-file SHA-256 comparison against the manifest.
-- Flashes only an external removable whole disk, after showing its model, size,
-  protocol, and serial, and after you type `ERASE <device>`. A `--dry-run` shows
-  the same details without writing.
+  the other 16 base directories, the `Cannoli/Config/settings.json` `{}` install
+  marker, and `APKs/` at the card root.
+- Downloads pinned GitHub release assets (exact repo/tag/asset) and copies
+  local payload files into the staged tree.
+- Builds a sparse MBR + exFAT `.img` inside a privileged Linux container
+  (`sbc-imager-builder:local`), checks the filesystem with `fsck.exfat -n`, and
+  atomically publishes the image via `<out>.partial` + `mv`.
+- Produces an image **file** only. The builder refuses `/dev/*` output paths
+  and non-`.img` outputs. There is no flashing mode: you write the image with
+  `dd` or balenaEtcher (or Raspberry Pi Imager in "use custom image" mode).
 
-See [`docs/manifest.md`](docs/manifest.md) for the complete manifest reference
-and [`docs/cannoli-platform-tags.md`](docs/cannoli-platform-tags.md) for the
-generated platform table.
+See [`docs/cannoli-platform-tags.md`](docs/cannoli-platform-tags.md) for the
+pinned platform table and [`ansible/vars/rg477m.yml`](ansible/vars/rg477m.yml)
+for the device vars that drive the RG477M build.
 
 ## Requirements
 
 | Task | Requirements |
 | --- | --- |
-| Build | Python 3.12+, [uv](https://docs.astral.sh/uv/), and Docker (Docker Desktop or Colima) with privileged container support. Docker is required; there is no native macOS assembler. |
-| Imaging | macOS with `diskutil`, root access (`sudo`), and a USB card reader or, with explicit opt-in, an internal SD reader. Linux and Windows imaging are not supported. |
-| Verify | Docker, because the filesystem scan runs inside the pinned container. |
-| Development | Python 3.12+, uv, Task, and Docker for the end-to-end image test. |
+| Build | [uv](https://docs.astral.sh/uv/) (Python 3.12+) and Docker with privileged container support. Ansible runs through `uv run`; the `ansible-core` pin lives in `pyproject.toml`. No local `sfdisk`/`mkfs.exfat` needed - macOS only needs Docker + uv + Task. |
+| Write to card | `dd` (macOS, Linux, or Git Bash on Windows) or [balenaEtcher](https://etcher.balena.io/) on any OS. The tool itself never touches a device. |
+| Development | uv, Task, and Docker (privileged) for the shell test suite. |
 
-The build path has no Windows support. The container is pinned by digest in the
-`Dockerfile`; `build` builds `sbc-imager-assembler:local` automatically when it
-is missing.
+The builder image is `sbc-imager-builder:local`, built from the repository-root
+`Dockerfile` (debian:bookworm-slim plus exfatprogs, util-linux, fdisk, rsync,
+and coreutils).
 
-## Install
+## Setup
 
 From a checkout of this repository:
 
 ```shell
-uv tool install .
+uv sync --all-groups   # install the pinned Python toolchain (incl. ansible-core)
+task container        # docker build -t sbc-imager-builder:local .
 ```
 
-For development, install the project and its dev dependencies instead:
+`task container` is shorthand for:
 
 ```shell
-uv sync --all-groups
-uv run sbc-imager --version
+docker build -t sbc-imager-builder:local .
 ```
 
 ## Quickstart
 
 ```shell
-# 1. See every Cannoli platform tag and display name.
-sbc-imager platforms
-
-# 2. Resolve sources, validate the manifest, and print the plan.
-sbc-imager plan --manifest examples/imager.toml
-
-# 3. Optionally warm the source cache without building.
-sbc-imager fetch --manifest examples/imager.toml
-
-# 4. Build and atomically publish a verified image.
-#    The bundled demo is tiny, so a pinned 66 MiB image is enough.
-sbc-imager build --manifest examples/imager.toml --size 66MiB
-
-# 5. Re-verify the published image against the manifest.
-sbc-imager verify --image dist/demo.img --manifest examples/imager.toml
-
-# 6. Inspect every whole disk and why it is or is not a safe target.
-sbc-imager image --list
-
-# 7. Show the selected card and image without writing.
-sbc-imager image --image dist/demo.img --dry-run
-
-# 8. Actually flash it. This is destructive and requires root.
-sudo -E sbc-imager image --image dist/demo.img
-```
-
-An explicit target skips the interactive menu, but still requires the typed
-`ERASE <device>` confirmation before writing:
-
-```shell
-# External card reader.
-sudo -E sbc-imager image --image dist/demo.img --device /dev/disk9
-
-# Internal built-in SD reader: explicit device plus opt-in.
-sudo -E uv run sbc-imager image --image dist/demo.img --device /dev/disk5 --allow-builtin-sd
-```
-
-### Size an image to the target card
-
-`build --expand` sizes the image to the full aligned capacity of the selected
-disk without writing the card. It reads the same safe whole-disk assessment as
-`image`, so `--device` accepts `diskN`, `/dev/diskN`, or `/dev/rdiskN`, and
-`--allow-builtin-sd` is required for an internal SD reader. `--expand` requires
-`--device`; `--device` is invalid without `--expand`; `--size` cannot be
-combined with `--expand`.
-
-```shell
-uv run sbc-imager build --manifest examples/rg477m/rg477m.toml \
-  --device /dev/disk5 --allow-builtin-sd --expand
-```
-
-The image is the largest 1 MiB-aligned size that fits the disk, with a minimum
-of 2 MiB. For the 511,868,665,856-byte disk5 that is `488156MiB`
-(511,868,665,856 bytes), with a 511,867,617,280-byte partition. The expanded
-size overrides `[image].size`; reserve is not used for that sizing. The host
-image is sparse, but flashing still writes the full logical size. Then flash it:
-
-```shell
-sudo -E uv run sbc-imager image \
-  --image examples/rg477m/dist/rg477m.img \
-  --device /dev/disk5 --allow-builtin-sd
-```
-
-### Progress output
-
-`build` reports phase progress on stderr: source resolution, staging, container
-preparation, assembly phases, verification, and publication. Known counts show
-as `current/total`; long phases show a phase line and elapsed time when they
-finish.
-
-```shell
-uv run sbc-imager build --manifest examples/rg477m/rg477m.toml --progress human
-```
-
-`--progress` accepts `auto` (default; human on a TTY, otherwise off), `human`,
-`json`, or `none`. In `json` mode stderr is newline-delimited JSON with
-`event: "progress"` or `event: "log"`. `--json` still keeps the
-machine-readable report on stdout pure; progress goes to stderr. Rebuild the
-assembler container after upgrading so the in-container phases are emitted:
-
-```shell
+# 1. Build the container (one-time, and after changing the Dockerfile/builder).
 task container
+
+# 2. Build the RG477M image as a 128 MiB file.
+#    The task wrapper is shorthand for the ansible-playbook command below it.
+task image DEVICE=rg477m SIZE_MIB=128
+uv run ansible-playbook ansible/build.yml \
+  -e device=rg477m -e image_device= -e image_size_mib=128
+
+# 3. Write the image to your SD card. This is the ONLY write path - the tool
+#    itself never touches a device. See "Write the image" below.
+sudo dd if=dist/rg477m.img of=/dev/rdiskN bs=4m
 ```
 
-Without `--size`, the demo manifest sizes itself to 67 MiB (1 MiB partition
-offset plus a 66 MiB partition for 592 bytes of content, the 64 MiB overhead,
-and the 1 MiB reserve declared in the example).
+### Collect the payload only
 
-### The 66 MiB minimum
+The playbook has two tag groups. `payload` stages the tree without invoking the
+container; the full run (no `--tags`) stages and then builds the image:
 
-The planner reserves at least **64 MiB of filesystem overhead** plus a **1 MiB
-partition offset**. A 64 MiB image therefore cannot hold the overhead and any
-content at all. The smallest 1 MiB-aligned image that can hold the tiny demo
-fixture is **66 MiB**; 65 MiB leaves no room for non-zero content. Larger cards
-normally use `size = "auto"` and the `reserve` setting instead.
-
-## Manifest at a glance
-
-```toml
-[image]
-name = "demo"
-label = "CANNOLI"
-size = "auto"
-reserve = "1MiB"
-output = "dist/demo.img"
-
-[[overlay]]
-platform = "GBA"
-path = "demo/overlays/GBA/bezel.png"
-
-[[shader]]
-path = "demo/shaders/crt-lamp"
-
-[[apk]]
-path = "demo/apks/Demo.apk"
-
-[[artifact]]
-root = "card"
-dest = "Manuals"
-path = "demo/manuals/readme.txt"
+```shell
+# Stage the payload tree at build/payload (default) without building an image.
+uv run ansible-playbook ansible/build.yml --tags payload \
+  -e device=rg477m -e image_device= -e image_size_mib=128
 ```
 
-ROMs, BIOS files, and box art are not manifest inputs: Cannoli/RomM supplies
-those files on the card. The manifest creates their directory skeleton but does
-not copy or download their contents.
+The default vars are `payload_dir: build/payload`, `dist_dir: dist`, and
+`image_output: dist/<device>.img`. Override any of them with `-e`:
 
-A pinned GitHub release asset can feed an APK entry. Only exact tags are
-supported in Phase 1; there is no `latest` or other mutable release selector.
-
-```toml
-[[source]]
-id = "obtainium"
-type = "github"
-repo = "ImranR98/Obtainium"
-tag = "v1.7.1"
-asset = "app-arm64-v8a-release.apk"
-
-[[apk]]
-source = "obtainium"
-as = "Obtainium.apk"
+```shell
+uv run ansible-playbook ansible/build.yml \
+  -e device=rg477m -e image_device= -e image_size_mib=128 \
+  -e payload_dir=/tmp/payload -e dist_dir=/tmp -e image_output=/tmp/rg477m.img
 ```
 
-The asset is selected by exact file name, its SHA-256/license/attribution are
-detected and cached, and it lands at `APKs/Obtainium.apk`. See
-[`examples/obtainium.toml`](examples/obtainium.toml). A complete RG477M manifest
-with the pinned Obtainium APK, Obtainium Emulation Pack, and Tailscale import is
-in [`examples/rg477m/`](examples/rg477m/).
+### Change the size or label
 
-Relative `path`, `output`, and local source `url` values resolve against the
-manifest's directory; `~` expands to your home directory. The bundled
-[`examples/imager.toml`](examples/imager.toml) uses only the placeholder files in
-[`examples/demo/`](examples/demo/README.md), so it works without a network
-connection.
+- **Size.** `image_size_mib` is the image size in MiB (at least 2). The device
+  vars file pins a value; `-e image_size_mib=N` overrides it. Alternatively,
+  pass `-e image_device=/dev/diskN` and the playbook reads that disk's size
+  read-only via `diskutil info` - it asserts the `WholeDisk` flag and never
+  writes the device. A non-empty `image_device` wins over `image_size_mib`;
+  pass `-e image_device=` to force the explicit size instead.
+- **Label.** `image_label` is the exFAT volume label, 1-11 characters. Change
+  it in `ansible/vars/<device>.yml` or with `-e image_label=MYLABEL`.
+
+## Write the image
+
+The tool **never writes to a block device** - on purpose. It produces
+`dist/rg477m.img` and stops. Writing that image to your SD card is a separate,
+manual step you perform with `dd` or balenaEtcher. There is no flashing mode,
+no interactive card selector, no `ERASE` prompt, and no other supported write
+path.
+
+First double-check the device node - this is destructive and targets the whole
+disk:
+
+```shell
+# macOS: list disks, then use the RAW node /dev/rdiskN for your card (N = its
+# disk number, e.g. disk4 -> rdisk4). Do NOT target your boot disk.
+diskutil list
+
+sudo dd if=dist/rg477m.img of=/dev/rdiskN bs=4m
+```
+
+On Linux or Git Bash for Windows, the same `dd` works against the card's raw
+node (e.g. `of=/dev/sdX` - make sure it is the card).
+
+If you prefer a GUI, use [balenaEtcher](https://etcher.balena.io/) on any OS:
+select `dist/rg477m.img`, select the card, and flash. Raspberry Pi Imager also
+works in "use custom image" mode. All of these paths write the image produced
+by this tool; the tool itself has no device-writing code path.
+
+## The RG477M happy path
+
+`ansible/vars/rg477m.yml` pins the Anbernic RG477M build:
+
+| Var | Value |
+| --- | --- |
+| `device` | `rg477m` |
+| `image_label` | `CANNOLI` |
+| `image_device` | `/dev/disk5` (read-only geometry source) |
+| `image_size_mib` | `488156` (the full aligned capacity of that disk5) |
+| `image_output` | `dist/rg477m.img` |
+| `remote_assets` | Obtainium APK `v1.7.1` -> `APKs/Obtainium.apk`; Obtainium Emulation Pack `v8.0.1` -> `Obtainium/obtainium-emulation-pack-v8.0.1.json` |
+| `local_files` | `ansible/files/rg477m/tailscale.json` -> `Obtainium/tailscale.json` |
+| `local_dirs` | none |
+
+Because the vars file pins `image_device: /dev/disk5`, a bare
+`uv run ansible-playbook ansible/build.yml -e device=rg477m` sizes the image
+from that disk (read-only). Pass `-e image_device= -e image_size_mib=128` for a
+quick small build, or `-e image_size_mib=<N>` to pin any size. See
+[`examples/rg477m/`](examples/rg477m/) for the full device write-up.
 
 ## Cannoli layout summary
 
-The image contains a payload tree, not an Android system image:
+The staged tree (and therefore the image) contains a payload tree, not an
+Android system image:
 
 ```text
 Cannoli/
   Art/
   BIOS/
-  Cheats/<TAG>/
+  Backup/
+  Cheats/
   Config/settings.json      # "{}" marker that preselects the card
-  Guides/<TAG>/
+  Guides/
+  Logs/
   Media/Recordings/
   Media/Screenshots/
-  Overlays/<TAG>/
+  Overlays/
   Roms/<TAG>/               # all 51 v1.9.1 tags
-  Save States/<TAG>/
-  Saves/<TAG>/
-  Shaders/<preset>/
+  Save States/
+  Saves/
+  Shaders/
   Wallpapers/
 APKs/
-CREDITS.md
+Obtainium/                  # device payload files (per-device vars)
 ```
 
-`[[artifact]]` entries can add other payload files under either the card root
-(`root = "card"`) or the Cannoli root (`root = "cannoli"`). Cannoli's own
-generated data, emulator cores, and app-private data are never included.
+The 17 base directories and 51 tags are declared in
+`ansible/vars/cannoli.yml` (plus the settings marker). The staged tree is 70
+directories: 17 base dirs + 51 `Roms/<TAG>` dirs + the implicit
+`Cannoli/Media` parent + `Obtainium`. Cannoli's own generated data, emulator
+cores, and app-private data are never included.
 
 ## Safety and limitations
 
@@ -254,97 +195,46 @@ generated data, emulator cores, and app-private data are never included.
 - **No APK installation.** APK files are copied to `APKs/` on the card; the tool
   does not run `adb`, install packages, or manage apps.
 - **ROMs, BIOS files, and box art are RomM-supplied.** Cannoli/RomM provides
-  those files on the card; this tool does not download or copy them. Remote
-  sources are supported for `[[overlay]]`, `[[shader]]`, and single-file
-  `[[apk]]`/`[[artifact]]` entries; GitHub APK and artifact sources require an
-  exact tag and asset name. The repository contains no copyrighted ROMs or BIOS
-  files.
+  those files on the card; this tool does not download or copy them. The only
+  remote downloads are the pinned GitHub release assets declared in the device
+  vars (`remote_assets`), each pinned by exact repo, tag, and asset name. The
+  repository contains no copyrighted ROMs or BIOS files.
 - **No zero-touch first boot.** The card preselects Cannoli as an existing
   install and ships every platform folder, but you still configure emulators,
   cores, and settings on first launch.
-- **No native macOS assembler and no Windows support.** Image assembly always
-  runs in the pinned Linux container.
-- **Explicit or interactive flashing, never unattended.** Flashing requires
-  root. `image --list` is read-only, needs no root or image, and shows every
-  whole disk with a safety status and reason. The command either prompts from
-  the safe list or accepts an explicit `--device diskN`, `/dev/diskN`, or
-  `/dev/rdiskN`; the target must resolve to a safe enumerated whole disk. It
-  shows model/size/protocol/serial when available and still requires typing
-  `ERASE <device>`. It unmounts, writes, syncs, and ejects. There is no `--yes`
-  or unattended mode.
-- **Internal disks are rejected unless explicitly opted in.** External
-  removable whole disks are the default. `--allow-builtin-sd` is valid only
-  with an explicit `--device` (or the read-only `--list` diagnostic) and permits
-  an internal disk only when it is a whole physical, removable or ejectable
-  `Secure Digital`/`SD Card` reader. It never permits the boot disk or a
-  non-removable internal disk. A USB card reader remains the default path.
-- **Flashing is destructive.** Every byte on the selected card is overwritten.
-  Use `--dry-run` first. There is no multi-card batch mode, no compression, and
-  no FAT32/ext4 option.
-- **No renaming or multi-disc bundling beyond `as`.** Retained files keep their
-  relative names and subdirectories unless a typed entry declares an `as` rename;
-  you are responsible for names Cannoli and the emulators expect.
-
-## Sample output
-
-A successful build prints progress on stderr and a summary on stdout:
-
-```text
-Staged 5 files in /var/folders/.../sbc-build-...
-Wrote /Users/me/sbc-android-card-imager/dist/demo.img (66MiB)
-Image: /Users/me/sbc-android-card-imager/dist/demo.img
-Size: 66MiB  SHA-256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef  Verified files: 7
-```
-
-`build` also writes `dist/demo.img.report.json` next to the image (and prints
-the same payload with `--json`). Abridged:
-
-```json
-{
-  "content_bytes": 592,
-  "content_files": 5,
-  "image": "/Users/me/sbc-android-card-imager/dist/demo.img",
-  "image_bytes": 69206016,
-  "offset": 1048576,
-  "partition_bytes": 68157440,
-  "schema_version": 1,
-  "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-  "verify": {
-    "actual_files": 7,
-    "expected_files": 7,
-    "extra": [],
-    "mismatched": [],
-    "missing": [],
-    "missing_dirs": [],
-    "ok": true
-  },
-  "warnings": []
-}
-```
-
-A successful verification prints:
-
-```text
-Verification passed: 7 files match the manifest.
-```
-
-A failure names the offending entries instead:
-
-```text
-Verification failed:
-  Hash mismatches: Cannoli/Overlays/GBA/bezel.png
-```
+- **Image assembly always runs in the pinned Linux container.** macOS never
+  runs `sfdisk` or `mkfs.exfat` locally; the container does all of it.
+- **No block-device writes, ever.** The builder refuses any output under
+  `/dev/` and any non-`.img` output. The only supported way to get the image
+  onto a card is `dd` or balenaEtcher, run by you. Double-check the device
+  node before writing - flashing overwrites every byte on the selected card.
+- **Read-only disk sizing.** `image_device` only reads `diskutil info` geometry
+  and asserts the `WholeDisk` flag. It never unmounts, writes, or formats.
+- **No verification pass or generated credits file.** The old per-file
+  verification step and the credits file it wrote are gone; the container's
+  `fsck.exfat -n` before publication is the built-image check.
 
 ## Development
 
 ```shell
-task lint    # ruff check, ruff format --check, pyright
-task test    # unit tests (no hardware or Docker required)
-task ci      # lint, unit tests, and uv build
+task container   # build sbc-imager-builder:local
+task lint        # ruff + pyright
+task test        # test suite
+task validate    # payload/build contract checks
+task ci          # local gate
 ```
 
-The full manifest schema, validation rules, size math, cache behavior, and exit
-codes live in [`docs/manifest.md`](docs/manifest.md).
+Shell tests live in `tests/`:
+
+- `tests/ansible-payload.sh` - runs the payload playbook in a temp dir and
+  asserts the full staged-tree contract (70 directories, 3 payload files, the
+  3-byte settings marker, no `CREDITS.md`).
+- `tests/smoke-image.sh` - offline 66 MiB tree-to-image smoke test of the
+  builder: MBR layout, `fsck.exfat -n`, mounted contents, loop cleanup, and
+  failure injection.
+- `tests/parity-rg477m.sh` - parity gate proving the Ansible pipeline's 128 MiB
+  RG477M image matches the old Python pipeline byte-for-byte except for
+  `CREDITS.md` (the old pipeline's only extra file).
 
 ## AI Disclosure
 
@@ -374,18 +264,19 @@ I wish you well.
 
 - **Cannoli** v1.9.1, commit
   `7755e376b6add0bbd25ea19104c368b7a40b979f`, GPL-3.0 -
-  <https://github.com/CannoliHQ/cannoli>. The platform registry, folder
-  contract, and install marker are derived from this pinned release.
-- **exfatprogs** - `mkfs.exfat` and `fsck.exfat` in the assembler container,
+  <https://github.com/CannoliHQ/cannoli>. The directory contract in
+  `ansible/vars/cannoli.yml` and the install marker are derived from this
+  pinned release.
+- **exfatprogs** - `mkfs.exfat` and `fsck.exfat` in the builder container,
   GPL-2.0 - <https://github.com/exfatprogs/exfatprogs>.
+- **Ansible** (`ansible-core`) - stages the payload tree, GPL-3.0 -
+  <https://github.com/ansible/ansible>.
+- **balenaEtcher** - the GUI path for writing the built image to a card,
+  Apache-2.0 - <https://www.balena.io/etcher/>.
 - **RetroArch / libretro documentation** - overlay, shader, BIOS, and core
   layout guidance - <https://docs.libretro.com/>.
-- **Typer** (MIT), **Rich** (MIT), **uv** (Apache-2.0/MIT), **ruff** (MIT), and
-  **Task** (MIT) - the CLI, terminal output, environment, linting, and task
-  runner used by this project.
-- The demo assets under `examples/demo/` are tiny, non-copyrighted placeholders
-  created for this repository. See
-  [`examples/demo/README.md`](examples/demo/README.md).
+- **uv** (Apache-2.0/MIT), **ruff** (MIT), and **Task** (MIT) - the environment,
+  linting, and task runner used by this project.
 
 ## License
 
