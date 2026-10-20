@@ -1,0 +1,93 @@
+# Cannoli v1.9.1 payload directory contract.
+#
+# Pinned source: Cannoli v1.9.1, commit
+# 7755e376b6add0bbd25ea19104c368b7a40b979f
+# (https://github.com/CannoliHQ/cannoli).
+#
+# Contract: 17 base directories + 51 platform tags = 68 directories.
+# Every path in ``cannoli_base_dirs`` is relative to the card root, so the
+# Cannoli root is ``Cannoli``, its children are ``Cannoli/<name>``, and
+# ``APKs`` lives at the card root rather than under ``Cannoli``.
+#
+# This file is deliberately data-only: display names, BIOS requirements, and
+# hash/checksum metadata live in ``src/sbc_imager/cannoli.py``.
+
+# 17 entries = Cannoli root (1) + 15 top-level Cannoli directories + APKs (1).
+cannoli_base_dirs:
+  - Cannoli
+  - Cannoli/Art
+  - Cannoli/BIOS
+  - Cannoli/Backup
+  - Cannoli/Cheats
+  - Cannoli/Config
+  - Cannoli/Guides
+  - Cannoli/Logs
+  - Cannoli/Media/Screenshots
+  - Cannoli/Media/Recordings
+  - Cannoli/Overlays
+  - Cannoli/Roms
+  - Cannoli/Save States
+  - Cannoli/Saves
+  - Cannoli/Shaders
+  - Cannoli/Wallpapers
+  - APKs
+
+# All 51 platform tags shipped by the pinned Cannoli v1.9.1 release, in the
+# exact order declared by ``PLATFORM_TAGS`` in src/sbc_imager/cannoli.py.
+# Each tag gets ``Cannoli/Roms/<TAG>`` (plus its sibling platform dirs).
+cannoli_tags:
+  - GB
+  - GBC
+  - GBA
+  - NES
+  - FDS
+  - SNES
+  - N64
+  - NDS
+  - GG
+  - SMS
+  - MD
+  - SG1000
+  - 32X
+  - SEGACD
+  - SATURN
+  - PS
+  - PSP
+  - DC
+  - LYNX
+  - JAGUAR
+  - ATARI2600
+  - ATARI5200
+  - ATARI7800
+  - PCE
+  - PCFX
+  - PICO8
+  - NGP
+  - NGPC
+  - WS
+  - WSC
+  - NEOGEO
+  - MAME
+  - FBN
+  - VIRTUALBOY
+  - POKEMINI
+  - COLECOVISION
+  - VECTREX
+  - INTELLIVISION
+  - SUPERGRAFX
+  - DOS
+  - SCUMMVM
+  - AMIGA
+  - PC
+  - PS2
+  - GC
+  - WII
+  - 3DS
+  - WIIU
+  - PSVITA
+  - PS3
+  - NSW
+
+# Marker FILE (contents ``{}``) that preselects the card as a Cannoli install.
+# This is a file, NOT a directory; ``Cannoli/Config`` above is the directory.
+cannoli_settings_marker: Cannoli/Config/settings.json
