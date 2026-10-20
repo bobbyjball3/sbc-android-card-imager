@@ -1,9 +1,0 @@
-[[source]]
-id = "x"
-type = "git"
-url = "https://example.com/x.git"
-
-[[source]]
-id = "x"
-type = "git"
-url = "https://example.com/y.git"
