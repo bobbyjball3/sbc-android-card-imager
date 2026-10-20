@@ -214,5 +214,41 @@ fi
 echo "PASS failure-injection: missing Cannoli/Roms/$REMOVED_TAG rejected (non-zero)"
 printf '%s\n' "$bad_output" | sed 's/^/    /'
 
+echo "== Path-resolution regression (relative defaults) =="
+# Ansible's file/copy staging resolves a relative path against the playbook
+# directory, not the process cwd. A relative default staged the tree under
+# ansible/build/payload while the container mount used a cwd-based realpath,
+# shipping a clean-but-empty image. Run with a relative payload_dir and assert
+# the tree lands where the container mount looks: rebased on the playbook dir.
+REL_PAYLOAD="build/payload"
+PLAYBOOK_DIR="$REPO_ROOT/ansible"
+REL_TREE="$PLAYBOOK_DIR/$REL_PAYLOAD"
+rm -rf "${REL_TREE:?}" "${PLAYBOOK_DIR:?}/dist" "${REPO_ROOT:?}/$REL_PAYLOAD"
+if ! uv run ansible-playbook ansible/build.yml --tags payload \
+  -e device=rg477m -e "image_device=" -e image_size_mib=128 \
+  -e "payload_dir=$REL_PAYLOAD" -e "dist_dir=dist" \
+  >"$TMP_DIR/rel.log" 2>&1; then
+  echo "FAIL relative-path run exited non-zero; full log follows" >&2
+  cat "$TMP_DIR/rel.log" >&2
+  exit 1
+fi
+if [[ ! -d "$REL_TREE" ]]; then
+  echo "FAIL relative-path staging: expected tree at playbook-relative" \
+    "$REL_TREE, not found" >&2
+  exit 1
+fi
+rel_dirs=$(find "$REL_TREE" -mindepth 1 -type d | wc -l | tr -d ' ')
+if [[ "$rel_dirs" -ne "$EXPECTED_DIRS" ]]; then
+  echo "FAIL relative-path staging: $REL_TREE has $rel_dirs dirs," \
+    "expected $EXPECTED_DIRS" >&2
+  exit 1
+fi
+if ! assert_payload_tree "$REL_TREE" >/dev/null; then
+  echo "FAIL relative-path staging: tree at playbook-relative base is incomplete" >&2
+  exit 1
+fi
+echo "PASS path-resolution: relative default stages at $REL_TREE ($rel_dirs dirs)"
+rm -rf "${REL_TREE:?}" "${PLAYBOOK_DIR:?}/dist" "${REPO_ROOT:?}/$REL_PAYLOAD"
+
 echo "== Result =="
 echo "PASS: payload contract holds (70 directories, 3 files, no CREDITS.md)"
