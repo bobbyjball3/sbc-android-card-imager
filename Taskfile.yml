@@ -3,8 +3,14 @@ version: '3'
 vars:
   DEVICE: '{{.DEVICE | default "rg477m"}}'
   SIZE_MIB: '{{.SIZE_MIB | default "128"}}'
-  PAYLOAD_DIR: '{{.PAYLOAD_DIR | default "build/payload"}}'
-  DIST_DIR: '{{.DIST_DIR | default "dist"}}'
+  # Absolute, derived from the Taskfile's own location, so staging and the
+  # container mount resolve the same directory no matter where task is run.
+  # The playbook's file/copy actions resolve relative paths against the
+  # playbook dir while the container mount resolves them against the cwd; a
+  # relative default split them and produced an empty image.
+  REPO_ROOT: '{{.TASKFILE_DIR}}'
+  PAYLOAD_DIR: '{{.PAYLOAD_DIR | default (printf "%s/build/payload" .TASKFILE_DIR)}}'
+  DIST_DIR: '{{.DIST_DIR | default (printf "%s/dist" .TASKFILE_DIR)}}'
 
 tasks:
   setup:
