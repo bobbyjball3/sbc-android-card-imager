@@ -26,9 +26,17 @@
 
   vars:
     device: rg477m
-    payload_dir: build/payload
-    dist_dir: dist
-    image_output: "dist/{{ device }}.img"
+    # Anchored to the repository root (playbook_dir/..). Ansible's file/copy
+    # actions resolve relative paths against the playbook directory, but
+    # `realpath` in the container task resolves them against the process cwd -
+    # so a relative default staged the tree under ansible/build/payload while
+    # the mount read the empty repo-root build/payload, publishing an image
+    # with a clean but empty filesystem. The normalize task below also lifts
+    # any relative -e override onto this same base.
+    repo_root: "{{ playbook_dir }}/.."
+    payload_dir: "{{ repo_root }}/build/payload"
+    dist_dir: "{{ repo_root }}/dist"
+    image_output: "{{ repo_root }}/dist/{{ device }}.img"
 
   vars_files:
     - vars/cannoli.yml
@@ -131,18 +139,18 @@
 
         - name: Ensure build directory exists
           ansible.builtin.file:
-            path: build
+            path: "{{ repo_root }}/build"
             state: directory
             mode: "0755"
 
         - name: Write device plist for parsing
           ansible.builtin.copy:
             content: "{{ diskutil_raw.stdout }}"
-            dest: build/disk.plist
+            dest: "{{ repo_root }}/build/disk.plist"
             mode: "0600"
 
         - name: Extract whole-disk flag
-          ansible.builtin.command: plutil -extract WholeDisk raw -o - build/disk.plist
+          ansible.builtin.command: plutil -extract WholeDisk raw -o - "{{ repo_root }}/build/disk.plist"
           register: whole_raw
           changed_when: false
 
@@ -155,7 +163,7 @@
               not true); refusing to size the image from it.
 
         - name: Extract total device size
-          ansible.builtin.command: plutil -extract TotalSize raw -o - build/disk.plist
+          ansible.builtin.command: plutil -extract TotalSize raw -o - "{{ repo_root }}/build/disk.plist"
           register: size_raw
           changed_when: false
 
@@ -200,13 +208,24 @@
       changed_when: false
       tags: payload
 
+    # Ansible's file/copy staging resolves a relative path against the playbook
+    # directory while `realpath` here would use the process cwd; for a relative
+    # path the two split and the container mounts an empty tree (clean exFAT,
+    # zero files). Rebase any relative value on playbook_dir so the mount
+    # source is exactly the directory the staging tasks wrote to.
+    - name: Resolve container mount paths
+      ansible.builtin.set_fact:
+        mount_payload: "{{ payload_dir if payload_dir.startswith('/') else playbook_dir ~ '/' ~ payload_dir }}"
+        mount_dist: "{{ dist_dir if dist_dir.startswith('/') else playbook_dir ~ '/' ~ dist_dir }}"
+      tags: image
+
     - name: Build card image in assembler container
       ansible.builtin.command: >-
         docker run --rm --privileged
         -e HOST_UID={{ host_uid.stdout }}
         -e HOST_GID={{ host_gid.stdout }}
-        -v {{ payload_dir | realpath }}:/payload:ro
-        -v {{ dist_dir | realpath }}:/out
+        -v {{ mount_payload }}:/payload:ro
+        -v {{ mount_dist }}:/out
         sbc-imager-builder:local
         /payload /out/{{ (image_output | basename) }} {{ image_size_mib }} {{ image_label }}
       changed_when: true
