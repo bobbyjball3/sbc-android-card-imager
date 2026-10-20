@@ -81,7 +81,18 @@ log "total_bytes: $TOTAL_BYTES"
 log "part_bytes: $PART_BYTES"
 log "evidence: $evidence_file"
 
-docker image inspect "$IMAGE" >/dev/null 2>&1 ||
+# Docker Desktop occasionally returns "no such image" from `image inspect` for a
+# present image (a known transient). Retry a bounded number of times so a real
+# image is not reported missing; a genuinely absent image still fails after.
+image_present=0
+for _ in 1 2 3; do
+    if docker image inspect "$IMAGE" >/dev/null 2>&1; then
+        image_present=1
+        break
+    fi
+    sleep 1
+done
+[ "$image_present" -eq 1 ] ||
     fail "builder image $IMAGE is missing; build it first (do not rebuild blind)"
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/smoke-image.XXXXXX")
