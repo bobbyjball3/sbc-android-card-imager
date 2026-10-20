@@ -218,7 +218,7 @@ cores, and app-private data are never included.
 
 ```shell
 task container   # build sbc-imager-builder:local
-task lint        # ruff + pyright
+task lint        # shellcheck + ansible-lint
 task test        # test suite
 task validate    # payload/build contract checks
 task ci          # local gate
