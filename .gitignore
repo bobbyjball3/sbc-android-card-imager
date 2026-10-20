@@ -12,4 +12,5 @@ build/
 *.img
 *.img.partial
 .omo/
+.ansible/
 .DS_Store

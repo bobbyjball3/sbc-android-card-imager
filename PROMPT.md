@@ -1,3 +1,9 @@
+> **SUPERSEDED.** This is the original kickoff brief for the retired
+> Python/Typer CLI device-imaging design. The project now uses an Ansible +
+> container + `dd`/Etcher pipeline; see [README.md](README.md) for the
+> current architecture and [AGENTS.md](AGENTS.md) for working rules. Kept
+> below for historical context only.
+
 # SD Card Imager for SBC Devices
 
 I want to build a repository that allows me to:

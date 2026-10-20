@@ -9,8 +9,10 @@
 # Cannoli root is ``Cannoli``, its children are ``Cannoli/<name>``, and
 # ``APKs`` lives at the card root rather than under ``Cannoli``.
 #
-# This file is deliberately data-only: display names, BIOS requirements, and
-# hash/checksum metadata live in ``src/sbc_imager/cannoli.py``.
+# This file is the runtime source of truth for the on-card directory contract:
+# 17 base dirs + 51 platform tags + the settings marker. The human-readable
+# reference (display names, BIOS requirements, notes) is
+# ``docs/cannoli-platform-tags.md``.
 
 # 17 entries = Cannoli root (1) + 15 top-level Cannoli directories + APKs (1).
 cannoli_base_dirs:
@@ -33,7 +35,8 @@ cannoli_base_dirs:
   - APKs
 
 # All 51 platform tags shipped by the pinned Cannoli v1.9.1 release, in the
-# exact order declared by ``PLATFORM_TAGS`` in src/sbc_imager/cannoli.py.
+# upstream order of that release. ``docs/cannoli-platform-tags.md`` is the
+# human-readable reference for the tag list.
 # Each tag gets ``Cannoli/Roms/<TAG>`` (plus its sibling platform dirs).
 cannoli_tags:
   - GB
