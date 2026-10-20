@@ -55,6 +55,16 @@ tasks:
     cmds:
       - sudo -E env "PATH=$PATH" uv run sbc-imager image --image dist/demo.img
 
+  ansible-payload:
+    desc: Run the Ansible payload playbook for a device
+    cmds:
+      - uv run ansible-playbook ansible/build.yml --tags payload -e device=rg477m -e image_device= -e image_size_mib=128
+
+  ansible-image:
+    desc: Run the Ansible image playbook for a device
+    cmds:
+      - uv run ansible-playbook ansible/build.yml -e device=rg477m
+
   ci:
     desc: Run the local CI gate
     cmds:

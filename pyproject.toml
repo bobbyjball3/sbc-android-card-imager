@@ -14,6 +14,7 @@ dependencies = [
     "rich>=15,<16",
     "httpx>=0.28,<1",
     "platformdirs>=4,<5",
+    "ansible-core>=2.17,<2.18",
 ]
 
 [project.scripts]
@@ -26,6 +27,7 @@ dev = [
     "ruff",
     "pyright",
     "pre-commit",
+    "ansible-lint",
 ]
 
 [tool.hatch.build.targets.wheel]
