@@ -2,13 +2,10 @@
 .venv
 dist
 build
-tests
 docs
 examples
+tests
 .omo
 *.img
 *.img.partial
 __pycache__
-.pytest_cache
-.ruff_cache
-.coverage*

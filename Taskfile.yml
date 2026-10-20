@@ -1,5 +1,11 @@
 version: '3'
 
+vars:
+  DEVICE: '{{.DEVICE | default "rg477m"}}'
+  SIZE_MIB: '{{.SIZE_MIB | default "128"}}'
+  PAYLOAD_DIR: '{{.PAYLOAD_DIR | default "build/payload"}}'
+  DIST_DIR: '{{.DIST_DIR | default "dist"}}'
+
 tasks:
   setup:
     desc: Install dependencies and git hooks
@@ -7,67 +13,50 @@ tasks:
       - uv sync --all-groups
       - uv run pre-commit install --allow-missing-config
 
-  format:
-    desc: Format the codebase
-    cmds:
-      - uv run ruff check --fix .
-      - uv run ruff format .
-
   lint:
-    desc: Check lint, formatting, and types
+    desc: Lint shell scripts and Ansible
     cmds:
-      - uv run ruff check .
-      - uv run ruff format --check .
-      - uv run pyright
+      - shellcheck container/build-image.sh tests/*.sh
+      - uv run ansible-lint ansible/
 
-  test:
-    desc: Run unit tests
+  format:
+    desc: Auto-fix Ansible lint findings
     cmds:
-      - uv run pytest -m "not integration" -q
+      - uv run ansible-lint --fix ansible/
 
-  test:integration:
-    desc: Run integration tests on Linux with sudo
+  validate:
+    desc: Syntax-check the Ansible build playbook
     cmds:
-      - sudo -E env "PATH=$PATH" uv run pytest -m integration -q
+      - uv run ansible-playbook ansible/build.yml --syntax-check -e device=rg477m -e image_device=
 
   container:
-    desc: Build the assembler container image
+    desc: Build the builder container image
     cmds:
-      - docker build -t sbc-imager-assembler:local .
-
-  plan:
-    desc: Plan a card build from the sample manifest
-    cmds:
-      - uv run sbc-imager plan --manifest examples/imager.toml
-
-  build:
-    desc: Build a card image from the sample manifest
-    cmds:
-      - uv run sbc-imager build --manifest examples/imager.toml
-
-  verify:
-    desc: Verify a built image against the sample manifest
-    cmds:
-      - uv run sbc-imager verify --image dist/demo.img --manifest examples/imager.toml
+      - docker build -t sbc-imager-builder:local .
 
   image:
-    desc: Write a verified image to a removable card
+    desc: Build the container and produce a card image
+    deps:
+      - container
     cmds:
-      - sudo -E env "PATH=$PATH" uv run sbc-imager image --image dist/demo.img
+      - >-
+        uv run ansible-playbook ansible/build.yml
+        -e device={{.DEVICE}}
+        -e image_device=
+        -e image_size_mib={{.SIZE_MIB}}
+        -e payload_dir={{.PAYLOAD_DIR}}
+        -e dist_dir={{.DIST_DIR}}
+        -e image_output={{.DIST_DIR}}/{{.DEVICE}}.img
 
-  ansible-payload:
-    desc: Run the Ansible payload playbook for a device
+  test:
+    desc: Run the payload and image smoke tests
     cmds:
-      - uv run ansible-playbook ansible/build.yml --tags payload -e device=rg477m -e image_device= -e image_size_mib=128
-
-  ansible-image:
-    desc: Run the Ansible image playbook for a device
-    cmds:
-      - uv run ansible-playbook ansible/build.yml -e device=rg477m
+      - tests/ansible-payload.sh
+      - tests/smoke-image.sh
 
   ci:
     desc: Run the local CI gate
     cmds:
       - task: lint
+      - task: validate
       - task: test
-      - uv build
