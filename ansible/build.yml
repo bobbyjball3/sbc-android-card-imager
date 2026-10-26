@@ -1,9 +1,10 @@
 ---
-# Stage the Cannoli payload tree and invoke the container builder.
+# Stage a device payload tree and invoke the container builder.
 #
-# Data contract (ansible/vars/cannoli.yml): 17 base directories + 51 platform
-# Roms directories = the 68-directory Cannoli contract. The staged tree also
-# carries the Obtainium directory for device file destinations.
+# `payload_profile` selects the on-card tree. `cannoli` loads
+# ansible/vars/cannoli.yml (17 base directories + 51 platform Roms directories
+# plus the Obtainium directory) and runs ansible/tasks/payload-cannoli.yml.
+# Other profiles supply their own vars file and task file.
 #
 # Size resolution, in order:
 #   1. image_device (optional): read-only `diskutil info -plist` + `plutil`.
@@ -19,13 +20,14 @@
 # it. If a redirect/403 failure shows up, switch ONLY this task to
 # `ansible.builtin.uri` with `follow_redirects: all`.
 
-- name: Stage Cannoli payload and build card image
+- name: Stage device payload and build card image
   hosts: localhost
   connection: local
   gather_facts: false
 
   vars:
     device: rg477m
+    payload_profile: cannoli
     # Anchored to the repository root (playbook_dir/..). Ansible's file/copy
     # actions resolve relative paths against the playbook directory, but
     # `realpath` in the container task resolves them against the process cwd -
@@ -37,12 +39,32 @@
     payload_dir: "{{ repo_root }}/build/payload"
     dist_dir: "{{ repo_root }}/dist"
     image_output: "{{ repo_root }}/dist/{{ device }}.img"
+    cache_dir: "{{ repo_root }}/build/cache"
+    remote_assets: []
+    remote_archives: []
+    local_files: []
+    local_dirs: []
 
   vars_files:
-    - vars/cannoli.yml
     - "vars/{{ device }}.yml"
 
   tasks:
+    - name: Validate payload profile
+      ansible.builtin.assert:
+        that:
+          - payload_profile in ['cannoli', 'nextui']
+        fail_msg: >-
+          Unsupported payload_profile '{{ payload_profile }}'. Valid profiles
+          are 'cannoli' and 'nextui'; set payload_profile in the device vars
+          file or with -e payload_profile=<name>.
+        quiet: true
+      tags: payload
+
+    - name: Load payload profile vars
+      ansible.builtin.include_vars:
+        file: "vars/{{ payload_profile }}.yml"
+      tags: payload
+
     - name: Clean and recreate payload staging directory
       ansible.builtin.file:
         path: "{{ payload_dir }}"
@@ -53,35 +75,133 @@
         - directory
       tags: payload
 
-    - name: Create Cannoli base directories
-      ansible.builtin.file:
-        path: "{{ payload_dir }}/{{ item }}"
-        state: directory
-        mode: "0755"
-      loop: "{{ cannoli_base_dirs }}"
+    - name: Stage Cannoli payload profile
+      ansible.builtin.include_tasks: tasks/payload-cannoli.yml
+      when: payload_profile == 'cannoli'
       tags: payload
 
-    - name: Create Cannoli platform ROM directories
-      ansible.builtin.file:
-        path: "{{ payload_dir }}/Cannoli/Roms/{{ item }}"
-        state: directory
-        mode: "0755"
-      loop: "{{ cannoli_tags }}"
+    - name: Stage NextUI payload profile
+      ansible.builtin.include_tasks: tasks/payload-nextui.yml
+      when: payload_profile == 'nextui'
       tags: payload
 
-    - name: Create Obtainium directory for local file destinations
-      ansible.builtin.file:
-        path: "{{ payload_dir }}/Obtainium"
-        state: directory
-        mode: "0755"
+    - name: Stage pinned remote archives
+      when: remote_archives | length > 0
       tags: payload
+      block:
+        - name: Ensure archive cache directory exists
+          ansible.builtin.file:
+            path: "{{ cache_dir }}"
+            state: directory
+            mode: "0755"
 
-    - name: Write Cannoli settings marker file
-      ansible.builtin.copy:
-        content: "{}\n"
-        dest: "{{ payload_dir }}/{{ cannoli_settings_marker }}"
-        mode: "0644"
-      tags: payload
+        - name: Validate remote archive entries
+          ansible.builtin.assert:
+            that:
+              - (['repo', 'tag', 'asset', 'sha256', 'dest'] | difference(item.keys() | list)) | length == 0
+              - item.repo is string
+              - item.repo | length > 0
+              - item.tag is string
+              - item.tag | length > 0
+              - item.asset is string
+              - item.asset | length > 0
+              - item.sha256 is string
+              - item.sha256 | length == 64
+              - item.sha256 is match('^[0-9a-f]{64}$')
+              - item.dest is string
+              - item.dest | length > 0
+              - (item.executables | default([])) is sequence
+            fail_msg: >-
+              Invalid remote_archives entry {{ item.asset | default('unknown') }}:
+              required keys repo/tag/asset/sha256/dest (strings), sha256 64 hex,
+              dest non-empty, executables optional list.
+            quiet: true
+          loop: "{{ remote_archives }}"
+          loop_control:
+            label: "{{ item.asset | default('entry') }}"
+
+        - name: Assert remote archive assets are unique
+          ansible.builtin.assert:
+            that:
+              - (remote_archives | map(attribute='asset') | list | unique | length) == (remote_archives | length)
+            fail_msg: "remote_archives contains duplicate asset names; cache key would collide."
+            quiet: true
+
+        - name: Create remote archive destination directories
+          ansible.builtin.file:
+            path: "{{ payload_dir }}/{{ item.dest }}"
+            state: directory
+            mode: "0755"
+          loop: "{{ remote_archives }}"
+
+        - name: Stat existing cached remote archives
+          ansible.builtin.stat:
+            path: "{{ cache_dir }}/{{ item.asset }}"
+            checksum_algorithm: sha256
+          loop: "{{ remote_archives }}"
+          register: cached_archive_stats
+
+        - name: Reject corrupted cached remote archives
+          ansible.builtin.assert:
+            that:
+              - not item.stat.exists or item.stat.checksum == item.item.sha256
+            fail_msg: >-
+              Cached archive {{ item.item.asset }} does not match its pinned
+              SHA-256 (expected {{ item.item.sha256 }}, got
+              {{ item.stat.checksum | default('missing') }}). Delete it from
+              {{ cache_dir }} and rebuild.
+            quiet: true
+          loop: "{{ cached_archive_stats.results }}"
+          loop_control:
+            label: "{{ item.item.asset }}"
+
+        - name: Download pinned remote archives to cache
+          ansible.builtin.get_url:
+            url: "https://github.com/{{ item.repo }}/releases/download/{{ item.tag }}/{{ item.asset }}"
+            dest: "{{ cache_dir }}/{{ item.asset }}"
+            checksum: "sha256:{{ item.sha256 }}"
+            force: false
+            timeout: 600
+            mode: "0644"
+          loop: "{{ remote_archives }}"
+
+        - name: Stat cached remote archives
+          ansible.builtin.stat:
+            path: "{{ cache_dir }}/{{ item.asset }}"
+            checksum_algorithm: sha256
+          loop: "{{ remote_archives }}"
+          register: archive_stats
+
+        - name: Verify cached remote archive checksums
+          ansible.builtin.assert:
+            that:
+              - item.stat.exists
+              - item.stat.checksum == item.item.sha256
+            fail_msg: >-
+              Cached archive {{ item.item.asset }} does not match its pinned
+              SHA-256 (expected {{ item.item.sha256 }}, got
+              {{ item.stat.checksum | default('missing') }}). Delete it from
+              {{ cache_dir }} and rebuild.
+            quiet: true
+          loop: "{{ archive_stats.results }}"
+          loop_control:
+            label: "{{ item.item.asset }}"
+
+        - name: Extract pinned remote archives into payload
+          ansible.builtin.unarchive:
+            src: "{{ cache_dir }}/{{ item.asset }}"
+            dest: "{{ payload_dir }}/{{ item.dest }}"
+            remote_src: true
+          loop: "{{ remote_archives }}"
+
+        - name: Make pak binaries executable
+          ansible.builtin.file:
+            path: "{{ payload_dir }}/{{ item.0.dest }}/{{ item.1 }}"
+            state: file
+            mode: "0755"
+          loop: "{{ remote_archives | selectattr('executables', 'defined') | list | subelements('executables') }}"
+          loop_control:
+            label: "{{ item.0.asset }}:{{ item.1 }}"
 
     - name: Create remote asset destination directories
       ansible.builtin.file:
@@ -180,6 +300,17 @@
           image_size_mib must be defined and at least 2 MiB (got
           '{{ image_size_mib | default("undefined") }}'). Pass -e
           image_size_mib=N or -e image_device=/dev/diskN.
+      tags: payload
+
+    - name: Validate NextUI minimum image size
+      ansible.builtin.assert:
+        that:
+          - payload_profile != 'nextui' or (image_size_mib | int) >= 1024
+        fail_msg: >-
+          The NextUI payload needs an image of at least 1024 MiB (got
+          '{{ image_size_mib }}'). Pass -e image_size_mib=N (>= 1024) or
+          -e image_device=/dev/diskN.
+        quiet: true
       tags: payload
 
     - name: Show resolved image size and output path

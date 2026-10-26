@@ -1,0 +1,7 @@
+# NextUI payload profile directory contract.
+#
+# The pinned NextUI `-all` release supplies the rest of the card tree; the
+# profile only pre-creates the base directory it owns so paks have a
+# stable destination. `nextui_platform` comes from the device vars file.
+nextui_base_dirs:
+  - Tools

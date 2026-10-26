@@ -1,0 +1,5 @@
+## feat/build-device-expand
+92ae713 docs: document build-time target sizing
+ac6c599 feat(build): size images to the target disk
+5404909 docs: document explicit disk and built-in SD selection
+13b038e feat(imaging): allow explicit built-in SD targets

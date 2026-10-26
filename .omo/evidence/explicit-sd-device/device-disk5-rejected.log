@@ -1,0 +1,2 @@
+Error: refusing /dev/disk5; disk5 is not a safe target: internal SD reader; re-run with --allow-builtin-sd
+Hint: run `sbc-imager image --list` to inspect every whole disk and its reason

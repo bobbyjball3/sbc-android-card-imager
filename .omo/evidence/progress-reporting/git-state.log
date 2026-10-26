@@ -1,0 +1,4 @@
+## feat/progress-reporting
+8997de7 docs: document build progress output
+10829b4 feat(progress): report build and assembler phases
+92ae713 docs: document build-time target sizing

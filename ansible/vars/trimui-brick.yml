@@ -1,0 +1,47 @@
+---
+# Device payload vars for the TrimUI Brick running NextUI.
+#
+# NextUI and Grout are pinned to exact GitHub release tags and assets; both
+# archives are SHA-256 verified in the cache before extraction. NextUI ships
+# the whole card root, so its dest is the payload root. Grout extracts under
+# the device platform directory (tg5040 for the Brick / Smart Pro).
+device: trimui-brick
+payload_profile: nextui
+image_label: NEXTUI
+image_size_mib: 8192
+image_output: dist/trimui-brick.img
+nextui_platform: tg5040
+
+remote_archives:
+  - repo: LoveRetro/NextUI
+    tag: v6.15.0
+    asset: NextUI-20261013-0-all.zip
+    sha256: d5edceaa92d0264f34da87f017a40fb8244dc3081f894f17c6979ffe94c4c38a
+    dest: "."
+  - repo: rommapp/grout
+    tag: v5.4.0.0
+    asset: Grout.pak.zip
+    sha256: eb5ffa37aca0d484e1c8c16f16c8cf4e7a74f798d5a023ea907f99d6cea45328
+    dest: "Tools/{{ nextui_platform }}/Grout.pak"
+    executables:
+      - launch.sh
+      - grout
+  - repo: ben16w/minui-tailscale
+    tag: "2.0.0"
+    asset: Tailscale.pak.zip
+    sha256: c4d202fb99f0ab156b17596ba42d26dafb9358a8ce91e7361e6f399f49cd8e20
+    dest: "Tools/{{ nextui_platform }}/Tailscale.pak"
+    executables:
+      - launch.sh
+  - repo: Helaas/nextui-CentralScrutinizer-pak
+    tag: v0.3.0
+    asset: Central.Scrutinizer.pak.zip
+    sha256: e3b6f0028ca5d31dcb1ba638829359ecf179facf409cab76f0a0b08688d88ee5
+    dest: "Tools/{{ nextui_platform }}/Central Scrutinizer.pak"
+    executables:
+      - launch.sh
+      - central-scrutinizer
+
+remote_assets: []
+local_files: []
+local_dirs: []

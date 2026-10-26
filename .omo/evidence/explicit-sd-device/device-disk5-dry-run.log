@@ -1,0 +1,7 @@
+Dry run: no data will be written.
+Device: disk5 (/dev/rdisk5)
+Model: Built In SDXC Reader
+Disk size: 511868665856 bytes (476.715GiB)
+Image: examples/rg477m/dist/rg477m.img
+Image size: 8686403584 bytes (8.09GiB)
+Image SHA-256: dd0b0f88e2d7c9ced977e86be4f6217bb62ce6478596d67ef7542e537790805e

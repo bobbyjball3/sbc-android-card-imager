@@ -1,0 +1,90 @@
+
+=== environment ===
+date: 2026-10-25T00:30:26Z
+image: sbc-imager-builder:local
+size_mib: 66
+label: CANNOLI
+total_bytes: 69206016
+part_bytes: 68157440
+evidence: /Users/bball/projects/sbc-android-card-imager/.omo/evidence/ansible-pivot/smoke.log
+
+=== fixture layout ===
+work dir: /var/folders/k6/yrllm9k147zgzk7kxn7hqr500000gn/T//smoke-image.Vo8LQ5
+dir  APKs
+dir  Cannoli
+dir  Cannoli/Config
+dir  Cannoli/Roms
+dir  Cannoli/Roms/GBA
+file APKs/Demo.apk (24 bytes)
+file Cannoli/Config/settings.json (3 bytes)
+file Cannoli/Roms/GBA/demo.gba (28 bytes)
+expected settings.json bytes: 3
+expected APKs/Demo.apk bytes: 24
+expected Cannoli/Roms/GBA/demo.gba bytes: 28
+
+=== build 66MiB image ===
++ docker run --rm --privileged -e HOST_UID=501 -e HOST_GID=20 -v /var/folders/k6/yrllm9k147zgzk7kxn7hqr500000gn/T//smoke-image.Vo8LQ5/payload:/payload:ro -v /var/folders/k6/yrllm9k147zgzk7kxn7hqr500000gn/T//smoke-image.Vo8LQ5/out:/out sbc-imager-builder:local /payload /out/smoke-card.img 66 CANNOLI 
+exfatprogs version : 1.2.0
+/dev/loop1: clean. directories 6, files 3
+Wrote /out/smoke-card.img (66MiB, label CANNOLI)
+builder exit code: 0
+builder final line OK: Wrote /out/smoke-card.img (66MiB, label CANNOLI)
+
+=== image file assertions ===
+image size bytes: 69206016
+
+=== MBR assertions (sfdisk -d) ===
++ docker run --rm --privileged -v /var/folders/k6/yrllm9k147zgzk7kxn7hqr500000gn/T//smoke-image.Vo8LQ5/out:/out --entrypoint sfdisk sbc-imager-builder:local -d /out/smoke-card.img 
+label: dos
+label-id: 0x238bf3e3
+device: /out/smoke-card.img
+unit: sectors
+sector-size: 512
+
+/out/smoke-card.img1 : start=        2048, size=      133120, type=7
+sfdisk exit code: 0
+MBR OK: start=2048, type=7
+
+=== filesystem assertions (fsck.exfat -n) ===
++ docker run --rm --privileged -v /var/folders/k6/yrllm9k147zgzk7kxn7hqr500000gn/T//smoke-image.Vo8LQ5/out:/out -e OFFSET_BYTES=1048576 -e PART_BYTES=68157440 -e IMAGE_NAME=smoke-card.img --entrypoint sh sbc-imager-builder:local -c $'set -eu\nloop=""\ncleanup_loop() {\n    rc=$?\n    trap - EXIT INT TERM\n    if [ -n "$loop" ]; then\n        losetup -d "$loop" >/dev/null 2>&1 || true\n    fi\n    exit "$rc"\n}\ntrap cleanup_loop EXIT INT TERM\nloop=$(losetup --find --show --offset "$OFFSET_BYTES" --sizelimit "$PART_BYTES" "/out/$IMAGE_NAME")\nfsck.exfat -n "$loop"' 
+exfatprogs version : 1.2.0
+/dev/loop1: clean. directories 6, files 3
+fsck exit code: 0
+fsck OK: filesystem clean
+
+=== mounted content assertions ===
++ docker run --rm --privileged -v /var/folders/k6/yrllm9k147zgzk7kxn7hqr500000gn/T//smoke-image.Vo8LQ5/out:/out -e OFFSET_BYTES=1048576 -e PART_BYTES=68157440 -e IMAGE_NAME=smoke-card.img -e SETTINGS_BYTES=3 -e APK_BYTES=24 -e GBA_BYTES=28 --entrypoint sh sbc-imager-builder:local -c $'set -eu\nloop=""\nmnt=""\nfail() {\n    echo "MISMATCH: $*" >&2\n    exit 1\n}\ncleanup_mount() {\n    rc=$?\n    trap - EXIT INT TERM\n    if [ -n "$mnt" ] && mountpoint -q "$mnt"; then\n        umount "$mnt" >/dev/null 2>&1 || umount -l "$mnt" >/dev/null 2>&1 || true\n    fi\n    if [ -n "$loop" ]; then\n        losetup -d "$loop" >/dev/null 2>&1 || true\n    fi\n    if [ -n "$mnt" ] && [ -d "$mnt" ]; then\n        rmdir "$mnt" >/dev/null 2>&1 || true\n    fi\n    exit "$rc"\n}\ntrap cleanup_mount EXIT INT TERM\nloop=$(losetup --find --show --offset "$OFFSET_BYTES" --sizelimit "$PART_BYTES" "/out/$IMAGE_NAME")\nmnt=$(mktemp -d)\nmount -t exfat -o ro "$loop" "$mnt"\nroot="$mnt"\n\n[ -d "$root/Cannoli" ] || fail "Cannoli directory missing"\n[ -d "$root/Cannoli/Config" ] || fail "Cannoli/Config missing"\n[ -d "$root/Cannoli/Roms" ] || fail "Cannoli/Roms missing"\n[ -d "$root/Cannoli/Roms/GBA" ] || fail "Cannoli/Roms/GBA missing"\n[ -d "$root/APKs" ] || fail "APKs directory missing"\n[ -f "$root/Cannoli/Config/settings.json" ] || fail "settings.json missing"\n[ -f "$root/APKs/Demo.apk" ] || fail "Demo.apk missing"\n[ -f "$root/Cannoli/Roms/GBA/demo.gba" ] || fail "demo.gba missing"\n\nsettings_bytes=$(wc -c <"$root/Cannoli/Config/settings.json" | tr -d "[:space:]")\n[ "$settings_bytes" -eq "$SETTINGS_BYTES" ] || fail "settings.json is $settings_bytes bytes, want $SETTINGS_BYTES"\n[ "$(cat "$root/Cannoli/Config/settings.json")" = "{}" ] || fail "settings.json content is not {}\\\\n"\napk_bytes_actual=$(wc -c <"$root/APKs/Demo.apk" | tr -d "[:space:]")\n[ "$apk_bytes_actual" -eq "$APK_BYTES" ] || fail "Demo.apk is $apk_bytes_actual bytes, want $APK_BYTES"\ngba_bytes_actual=$(wc -c <"$root/Cannoli/Roms/GBA/demo.gba" | tr -d "[:space:]")\n[ "$gba_bytes_actual" -eq "$GBA_BYTES" ] || fail "demo.gba is $gba_bytes_actual bytes, want $GBA_BYTES"\n\necho "mounted tree (type size path):"\n(cd "$root" && find . -mindepth 1 -printf "%y %s %p\\n" | sort)\necho "settings.json bytes: $settings_bytes"\necho "Demo.apk bytes: $apk_bytes_actual"\necho "demo.gba bytes: $gba_bytes_actual"\necho "MOUNT-CONTENT-OK"' 
+mounted tree (type size path):
+d 4096 ./APKs
+d 4096 ./Cannoli
+d 4096 ./Cannoli/Config
+d 4096 ./Cannoli/Roms
+d 4096 ./Cannoli/Roms/GBA
+f 24 ./APKs/Demo.apk
+f 28 ./Cannoli/Roms/GBA/demo.gba
+f 3 ./Cannoli/Config/settings.json
+settings.json bytes: 3
+Demo.apk bytes: 24
+demo.gba bytes: 28
+MOUNT-CONTENT-OK
+mount check exit code: 0
+mount content OK
+
+=== loop leak check ===
++ docker run --rm --privileged --entrypoint losetup sbc-imager-builder:local -a 
+/dev/loop0: [0043]:1018 (/.omo/tmp-nextui-verify/tmp.x8pJFII3Z9/dist/nextui.img), offset 1048576, sizelimit 1072693248
+losetup -a exit code: 0
+no loop device references smoke-card.img
+
+=== failure cases (must exit non-zero) ===
++ docker run --rm --privileged -e HOST_UID=501 -e HOST_GID=20 -v /var/folders/k6/yrllm9k147zgzk7kxn7hqr500000gn/T//smoke-image.Vo8LQ5/out-fail:/out sbc-imager-builder:local /payload-does-not-exist /out/fail.img 2 CANNOLI 
+build-image: error: payload directory does not exist: /payload-does-not-exist
+missing-payload exit code: 1
+missing-payload error: build-image: error: payload directory does not exist: /payload-does-not-exist
++ docker run --rm --privileged -e HOST_UID=501 -e HOST_GID=20 -v /var/folders/k6/yrllm9k147zgzk7kxn7hqr500000gn/T//smoke-image.Vo8LQ5/payload:/payload:ro -v /var/folders/k6/yrllm9k147zgzk7kxn7hqr500000gn/T//smoke-image.Vo8LQ5/out-fail:/out sbc-imager-builder:local /payload /out/fail.raw 2 CANNOLI 
+build-image: error: output path must end in .img: /out/fail.raw
+bad-extension exit code: 1
+bad-extension error: build-image: error: output path must end in .img: /out/fail.raw
+
+=== result ===
+PASS: 66MiB tree-to-image build, MBR, fsck, mount content, loop cleanup, failures

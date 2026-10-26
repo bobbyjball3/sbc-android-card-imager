@@ -1,0 +1,6 @@
+[32mtask: [lint] uv run ruff check .
+[0mAll checks passed!
+[32mtask: [lint] uv run ruff format --check .
+[0m77 files already formatted
+[32mtask: [lint] uv run pyright
+[0m0 errors, 0 warnings, 0 informations

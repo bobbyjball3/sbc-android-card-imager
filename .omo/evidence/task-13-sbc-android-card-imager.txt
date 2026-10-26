@@ -1,0 +1,91 @@
+Task 13 manual QA - MBR, sizes, sparse-file primitives
+platform=macOS-15.6.1-arm64-arm-64bit python=3.12.14
+os.SEEK_DATA=4 os.SEEK_HOLE=3
+
+== MBR field dump ==
+len(build_mbr(partition_sectors=131072))=512
+entry 446:462 hex = 00 fe ff ff 07 fe ff ff 00 08 00 00 00 00 02 00
+status=0x00 chs_start=fe ff ff type=0x07 chs_end=fe ff ff
+start_lba=2048 sectors=131072 signature=55 aa
+custom start/type: start=4096 type=0x83
+reject sectors=0: ValueError: partition_sectors must be between 1 and 4294967295, got 0
+reject sectors=-1: ValueError: partition_sectors must be between 1 and 4294967295, got -1
+reject sectors=4294967296: ValueError: partition_sectors must be between 1 and 4294967295, got 4294967296
+reject start_lba=0: ValueError: partition_start_lba must be between 1 and 4294967295, got 0
+reject start_lba=-1: ValueError: partition_start_lba must be between 1 and 4294967295, got -1
+reject start_lba=4294967296: ValueError: partition_start_lba must be between 1 and 4294967295, got 4294967296
+reject type_=-1: ValueError: type_ must be between 0 and 255, got -1
+reject type_=256: ValueError: type_ must be between 0 and 255, got 256
+
+== Size parses / formatting / alignment ==
+parse_size('0') = 0 -> format_size = 0B
+parse_size('512') = 512 -> format_size = 512B
+parse_size('1KiB') = 1024 -> format_size = 1KiB
+parse_size('8GiB') = 8589934592 -> format_size = 8GiB
+parse_size('1TiB') = 1099511627776 -> format_size = 1TiB
+parse_size('1.5MiB') = 1572864 -> format_size = 1.5MiB
+parse_size('2.25GiB') = 2415919104 -> format_size = 2.25GiB
+parse_size(' 8GiB ') = 8589934592 -> format_size = 8GiB
+format_size(1536)=1.5KiB format_size(1025)=1.001KiB
+align_up(513, 512)=1024 align_up(1, 1024*1024)=1048576
+reject size '': ConfigError: invalid-size: unsupported size ''
+reject size '-1': ConfigError: invalid-size: unsupported size '-1'
+reject size '-8GiB': ConfigError: invalid-size: unsupported size '-8GiB'
+reject size '8GB': ConfigError: invalid-size: unsupported size '8GB'
+reject size '1.2345GiB': ConfigError: invalid-size: unsupported size '1.2345GiB'
+reject size 'many': ConfigError: invalid-size: unsupported size 'many'
+reject alignment=0: ValueError: alignment must be positive, got 0
+reject alignment=-1: ValueError: alignment must be positive, got -1
+
+== Sparse create / write_at / hash / copy ==
+create_sparse apparent=16777216 allocated_blocks=0
+first 16 bytes are zero=True
+last 16 bytes are zero=True
+after writes apparent=16777216 allocated_blocks=16777216
+hole region at 8MiB+6 is zero=True
+seek_data(0)=0 seek_hole(0)=16777216 (hole reporting useful=False)
+copy_sparse size=16777216 src_sha256=19b615f809335184dfee9e35f34c731567cb38fe8118fb1a0afab69089352c39 dst_sha256=19b615f809335184dfee9e35f34c731567cb38fe8118fb1a0afab69089352c39 match=True
+copy allocated_blocks=16777216
+reject write_at past EOF: ValueError: write of 5 bytes at offset 16777212 exceeds file size 16777216
+size unchanged after rejected write=True
+sha256_file(b'abc')=ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+all-hole copy apparent=16777216 allocated_blocks=0
+
+== Full-suite gates ==
+See command transcript captured by worker: ruff/format/pyright/task lint/task test all exit 0.
+
+
+== Adversarial probes ==
+- MBR overflow / zero / negative sector and LBA values: all raise ValueError (see dump above).
+- Invalid sizes (empty, negative, GB, >3 decimals, non-numeric) and alignment <= 0: rejected.
+- Sparse holes: create_sparse produces apparent=16 MiB allocated=0; a holey source copy preserves zero bytes at the hole offset.
+- SHA-256: known b"abc" digest and a >8 MiB file digest match hashlib.
+- write_at past EOF: ValueError; file size and content unchanged.
+- No whole-file reads: grep for ".read()" in src/sbc_imager/fs.py returns nothing; hash/copy use bounded 8 MiB chunks.
+- SEEK_DATA/SEEK_HOLE fallback: forced EINVAL on either constant still copies correct content via shutil.copyfile.
+- Flaky tests: target suite run twice, 62 passed / 1 skipped both times; full suite 323 passed / 1 skipped.
+- Dirty worktree: after commit, git status --short is empty; only task-13 files were committed.
+- APFS note: this macOS filesystem does not report useful holes once data exists (SEEK_HOLE(0)=size, allocated=apparent), so the sparse-block assertion is skipped by the test; all-hole files still show allocated=0.
+- Prompt injection: n/a, no untrusted model/tool output was acted on.
+- Long-running / cancel-resume / repeated interruptions: n/a, all commands completed well inside timeouts in one uninterrupted worker session.
+
+== Result ==
+commit=72dcee7 feat(image): add mbr and sparse-file primitives
+tests: target 62 passed, 1 skipped (twice); task test 323 passed, 1 skipped
+gates: ruff check/format, pyright, task lint, task test all exit 0
+
+== Verifier regression fix: sparse-copy extent offsets ==
+defect: copy_sparse seeked source but not target; extents packed contiguously
+fix: target.seek(data_at) before each extent write
+synthetic extents: ((0, 5), (8388608, 8388614), (16777211, 16777216))
+dst[0:5]=b'hello' dst[8MiB:8MiB+6]=b'world!' dst[EOF-5:EOF]=b'end!!'
+src_sha256=9f3db253f8ac6968cacc6db5c39822276cdaa95943bc06a86dd54d314b9bf305 dst_sha256=9f3db253f8ac6968cacc6db5c39822276cdaa95943bc06a86dd54d314b9bf305 match=True
+regression test: tests/unit/test_fs.py::test_copy_sparse_when_seek_data_reports_extents_writes_at_same_offsets PASSED
+sizes correction: parse_size('512 byte') = 512
+
+== Verifier follow-up result ==
+commit=094d5a0 fix(fs): preserve sparse extents when copying
+target suite: 64 passed, 1 skipped, twice (exit 0)
+full suite: 325 passed, 1 skipped (exit 0)
+task lint: exit 0; focused ruff check/format: exit 0; pyright: 0 errors
+git status --short after commit: empty

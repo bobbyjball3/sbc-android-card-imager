@@ -1,0 +1,26 @@
+                                                                                
+ Usage: sbc-imager build [OPTIONS]                                              
+                                                                                
+ Build, verify, and atomically publish a card image.                            
+                                                                                
+╭─ Options ────────────────────────────────────────────────────────────────────╮
+│ *  --manifest                <file>  Manifest path. [required]               │
+│    --output                  <path>  Output image path.                      │
+│    --size                    <str>   Image size or auto; cannot be combined  │
+│                                      with --expand.                          │
+│    --reserve                 <str>   Free space reserve.                     │
+│    --device                  <str>   Target disk to size from: diskN,        │
+│                                      /dev/diskN, or /dev/rdiskN. Requires    │
+│                                      --expand.                               │
+│    --expand                          Size the image to the --device disk;    │
+│                                      never writes it.                        │
+│    --allow-builtin-sd                Permit an internal SD reader with       │
+│                                      --device.                               │
+│    --offline                                                                 │
+│    --force                                                                   │
+│    --keep-work                                                               │
+│    --allow-branch                                                            │
+│    --json                                                                    │
+│    --help                            Show this message and exit.             │
+╰──────────────────────────────────────────────────────────────────────────────╯
+

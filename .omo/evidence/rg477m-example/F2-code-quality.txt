@@ -1,0 +1,144 @@
+F2 Code Quality Review - RG477M example (post-fix re-run)
+Date: 2026-10-19
+Reviewer: opencode / deepseek-flash
+Mode: read-only. No source, test, doc, plan, or git edits were made. Only this report was written.
+Worktree: /Users/bball/projects/sbc-android-card-imager-wt/rg477m-example
+Branch: feat/rg477m-example
+HEAD: b7a7df5505737f29bae5bd5d5e94849523c2ae4a (matches expected)
+Prior HEAD: 0a423012e8d6b9efd7757b7f24e723b2413d97c2 (matches expected)
+Scope: delta 0a42301..b7a7df5 plus the prior feature diff 0563975..HEAD for regression checks.
+
+VERDICT: APPROVE
+
+PRIOR BLOCKER AND RESOLUTION
+
+Prior blocker B1 (from the previous F2 report) was:
+  examples/rg477m/README.md:78 told the reader to run verify with
+  --image dist/rg477m.img, while the manifest output resolved to
+  examples/rg477m/dist/rg477m.img. The documented verify command therefore
+  failed before verification.
+
+Resolution:
+  Commit b7a7df5505737f29bae5bd5d5e94849523c2ae4a ("docs(examples): fix
+  RG477M verify path") changes exactly that line to:
+    uv run sbc-imager verify --manifest examples/rg477m/rg477m.toml --image examples/rg477m/dist/rg477m.img
+
+  The path now matches the manifest output resolved against the manifest
+  directory. No remaining `--image dist/rg477m.img` occurrence exists in the
+  worktree (grep EXIT=1 for that exact string).
+
+DELTA REVIEW (0a42301..b7a7df5)
+
+git status --short --branch
+  ## feat/rg477m-example
+  (clean; no untracked/modified files)
+
+git log --oneline -3
+  b7a7df5 docs(examples): fix RG477M verify path
+  0a42301 test(examples): prove the RG477M manifest and imports
+  bdf7a1c docs(examples): document the RG477M image and imports
+
+git log -1 --format='%H %P'
+  b7a7df5505737f29bae5bd5d5e94849523c2ae4a 0a423012e8d6b9efd7757b7f24e723b2413d97c2
+
+Commit message/footer
+  docs(examples): fix RG477M verify path
+
+  Co-authored-by: DeepSeek - Flash <deepseek@deepseek.com>
+
+git show --stat --oneline HEAD
+  b7a7df5 docs(examples): fix RG477M verify path
+   examples/rg477m/README.md | 2 +-
+   1 file changed, 1 insertion(+), 1 deletion(-)
+
+git diff --name-status 0a42301..b7a7df5
+  M examples/rg477m/README.md
+
+Exact delta patch:
+  -uv run sbc-imager verify --manifest examples/rg477m/rg477m.toml --image dist/rg477m.img
+  +uv run sbc-imager verify --manifest examples/rg477m/rg477m.toml --image examples/rg477m/dist/rg477m.img
+
+Confirmed: the fix commit changes only the README path line. No code, test,
+plan, or Boulder file is part of the delta.
+
+MANIFEST OUTPUT RESOLUTION
+
+examples/rg477m/rg477m.toml:6
+  output = "dist/rg477m.img"
+
+load_manifest("examples/rg477m/rg477m.toml") returned:
+  manifest:   /Users/bball/projects/sbc-android-card-imager-wt/rg477m-example/examples/rg477m/rg477m.toml
+  image.output: /Users/bball/projects/sbc-android-card-imager-wt/rg477m-example/examples/rg477m/dist/rg477m.img
+  relative_to_repo: examples/rg477m/dist/rg477m.img
+
+The resolved manifest output equals the README verify path relative to the
+repository root. README line 78 uses exactly that relative path. README line
+131 separately uses /tmp/rg477m.img for a no-cache example, which is unrelated.
+No `--image dist/rg477m.img` mismatch remains.
+
+GATES (all run in the worktree)
+
+1) uv run pytest -m "not integration" -q
+   589 passed, 1 skipped, 3 deselected in 5.25s
+   EXIT=0
+   The skip is the expected platform-dependent sparse-file test at
+   tests/unit/test_fs.py:156.
+
+2) uv run pytest -m "not integration" -q --cov=sbc_imager --cov-report=term-missing --cov-fail-under=85
+   Required test coverage of 85% reached. Total coverage: 92.65%
+   589 passed, 1 skipped, 3 deselected in 5.76s
+   EXIT=0
+
+3) task lint
+   ruff check: All checks passed!
+   ruff format --check: 77 files already formatted
+   pyright: 0 errors, 0 warnings, 0 informations
+   EXIT=0
+
+4) uv run pre-commit run --all-files
+   ruff check...............................................................Passed
+   ruff format..............................................................Passed
+   pyright..................................................................Passed
+   pytest-unit..............................................................Passed
+   EXIT=0
+
+5) git diff --check main..HEAD
+   (no output)
+   EXIT=0
+   git diff --check 0a42301..HEAD
+   (no output)
+   EXIT=0
+   git diff --check 0563975..HEAD
+   (no output)
+   EXIT=0
+
+6) Focused examples/docs tests
+   uv run pytest tests/unit/test_examples.py tests/unit/test_docs.py -q
+   -> 18 passed in 0.32s, EXIT=0
+
+PROHIBITED-PATTERN AND REGRESSION SCAN
+
+Added lines in 0563975..HEAD scanned for:
+  shell=True, NotImplementedError, type: ignore/noqa/pyright ignore/no cover,
+  swallowed exceptions, hard-coded host paths, secrets/tokens, password.
+  Result: NONE.
+
+sources_github.py remains unchanged in the feature diff:
+  git diff --quiet 0563975..HEAD -- src/sbc_imager/sources_github.py
+  EXIT=0
+
+src/sbc_imager/sources.py and src/sbc_imager/cannoli.py also have no feature-diff
+changes:
+  git diff --name-only 0563975..HEAD -- src/sbc_imager/sources.py src/sbc_imager/cannoli.py
+  (no output)
+
+No Wave 1 regression: test count remains 589 passed with the same single
+platform skip, matching the pre-fix F2 run.
+
+NEW BLOCKERS
+
+None. The prior B1 blocker is resolved and no new blocker was found in the
+delta or the feature diff.
+
+EVIDENCE PATH
+/Users/bball/projects/sbc-android-card-imager/.omo/evidence/rg477m-example/F2-code-quality.txt

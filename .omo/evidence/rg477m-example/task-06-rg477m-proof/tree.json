@@ -1,0 +1,27 @@
+[
+  {
+    "dest": "APKs/Obtainium.apk",
+    "sha256": "04dfd02c56dae8d5271d2d402977e1b07c8eeffb313df054a13e71b75b8b8a26",
+    "size": 27194505
+  },
+  {
+    "dest": "CREDITS.md",
+    "sha256": "df1e04f558ff27aa5fa93c6720e5fd5fd45a9ef52ffad3d55792469010048ac2",
+    "size": 972
+  },
+  {
+    "dest": "Cannoli/Config/settings.json",
+    "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+    "size": 3
+  },
+  {
+    "dest": "Obtainium/obtainium-emulation-pack-v8.0.1.json",
+    "sha256": "c2170687b07881f5891fe9751903c13c31b80de506bd41b718f99abb45592169",
+    "size": 78201
+  },
+  {
+    "dest": "Obtainium/tailscale.json",
+    "sha256": "965cb8f0afb48f7dfee57099ccaa43f00c9ef50e16c50fd4a90f1cab0286fcd4",
+    "size": 383
+  }
+]

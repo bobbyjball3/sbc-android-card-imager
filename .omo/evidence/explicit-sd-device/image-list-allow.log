@@ -1,0 +1,9 @@
+┏━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Identifier ┃ Label ┃ Size       ┃ Model                ┃ Protocol       ┃ Status  ┃ Reason                                  ┃
+┡━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ disk0      │ -     │ 931.84GiB  │ APPLE SSD AP1024Z    │ Apple Fabric   │ blocked │ internal disk                           │
+│ disk1      │ -     │ 500MiB     │ APPLE SSD AP1024Z    │ Apple Fabric   │ blocked │ virtual disk                            │
+│ disk2      │ -     │ 5GiB       │ APPLE SSD AP1024Z    │ Apple Fabric   │ blocked │ virtual disk                            │
+│ disk3      │ -     │ 926.352GiB │ APPLE SSD AP1024Z    │ Apple Fabric   │ blocked │ virtual disk                            │
+│ disk5      │ -     │ 476.715GiB │ Built In SDXC Reader │ Secure Digital │ allowed │ internal SD reader (--allow-builtin-sd) │
+└────────────┴───────┴────────────┴──────────────────────┴────────────────┴─────────┴─────────────────────────────────────────┘

@@ -1,0 +1,114 @@
+=== F3 START ===
+Date: Sun Oct 25 00:30:02 UTC 2026
+
+=== task container ===
+#6 CACHED
+
+#7 [3/4] COPY container/build-image.sh /usr/local/bin/build-image
+#7 CACHED
+
+#8 [4/4] RUN chmod +x /usr/local/bin/build-image
+#8 CACHED
+
+#9 exporting to image
+#9 exporting layers done
+#9 writing image sha256:b79a0b3d4fa284325f00a904d0c0fbb0fb6962b8cd0d1cd8bbb22f186e147239 done
+#9 naming to docker.io/library/sbc-imager-builder:local done
+#9 DONE 0.0s
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/kxejkarecmx7jt1eodc2e4qhg
+
+=== tests/ansible-payload.sh ===
+    PASS base dirs: 17/17 present
+    FAIL missing roms dir: Cannoli/Roms/GB
+    FAIL directory count: expected 70 got 69
+    PASS settings marker: Cannoli/Config/settings.json is exactly 3 bytes
+    PASS file APKs/Obtainium.apk: 27194505 bytes sha256=04dfd02c56dae8d5271d2d402977e1b07c8eeffb313df054a13e71b75b8b8a26
+    PASS file Obtainium/obtainium-emulation-pack-v8.0.1.json: 78201 bytes sha256=c2170687b07881f5891fe9751903c13c31b80de506bd41b718f99abb45592169
+    PASS file Obtainium/tailscale.json: 383 bytes sha256=965cb8f0afb48f7dfee57099ccaa43f00c9ef50e16c50fd4a90f1cab0286fcd4
+    PASS no CREDITS.md under payload
+== Path-resolution regression (relative defaults) ==
+PASS path-resolution: relative default stages at /Users/bball/projects/sbc-android-card-imager/ansible/build/payload (70 dirs)
+== Result ==
+PASS: payload contract holds (70 directories, 3 files, no CREDITS.md)
+
+=== tests/smoke-image.sh ===
+mount content OK
+
+=== loop leak check ===
++ docker run --rm --privileged --entrypoint losetup sbc-imager-builder:local -a 
+/dev/loop0: [0043]:1018 (/.omo/tmp-nextui-verify/tmp.x8pJFII3Z9/dist/nextui.img), offset 1048576, sizelimit 1072693248
+losetup -a exit code: 0
+no loop device references smoke-card.img
+
+=== failure cases (must exit non-zero) ===
++ docker run --rm --privileged -e HOST_UID=501 -e HOST_GID=20 -v /var/folders/k6/yrllm9k147zgzk7kxn7hqr500000gn/T//smoke-image.Vo8LQ5/out-fail:/out sbc-imager-builder:local /payload-does-not-exist /out/fail.img 2 CANNOLI 
+build-image: error: payload directory does not exist: /payload-does-not-exist
+missing-payload exit code: 1
+missing-payload error: build-image: error: payload directory does not exist: /payload-does-not-exist
++ docker run --rm --privileged -e HOST_UID=501 -e HOST_GID=20 -v /var/folders/k6/yrllm9k147zgzk7kxn7hqr500000gn/T//smoke-image.Vo8LQ5/payload:/payload:ro -v /var/folders/k6/yrllm9k147zgzk7kxn7hqr500000gn/T//smoke-image.Vo8LQ5/out-fail:/out sbc-imager-builder:local /payload /out/fail.raw 2 CANNOLI 
+build-image: error: output path must end in .img: /out/fail.raw
+bad-extension exit code: 1
+bad-extension error: build-image: error: output path must end in .img: /out/fail.raw
+
+=== result ===
+PASS: 66MiB tree-to-image build, MBR, fsck, mount content, loop cleanup, failures
+
+=== task --dry shapes ===
+--- dry1: trimui-brick SIZE_MIB=1024
+[32mtask: [container] docker build -t sbc-imager-builder:local .
+[0m[32mtask: [image] uv run ansible-playbook ansible/build.yml -e device=trimui-brick -e image_size_mib=1024  -e payload_dir=/Users/bball/projects/sbc-android-card-imager/build/payload -e dist_dir=/Users/bball/projects/sbc-android-card-imager/dist -e image_output=/Users/bball/projects/sbc-android-card-imager/dist/trimui-brick.img
+[0m
+--- dry2: trimui-brick
+[32mtask: [container] docker build -t sbc-imager-builder:local .
+[0m[32mtask: [image] uv run ansible-playbook ansible/build.yml -e device=trimui-brick   -e payload_dir=/Users/bball/projects/sbc-android-card-imager/build/payload -e dist_dir=/Users/bball/projects/sbc-android-card-imager/dist -e image_output=/Users/bball/projects/sbc-android-card-imager/dist/trimui-brick.img
+[0m
+--- dry3: rg477m SIZE_MIB=128
+[32mtask: [container] docker build -t sbc-imager-builder:local .
+[0m[32mtask: [image] uv run ansible-playbook ansible/build.yml -e device=rg477m -e image_size_mib=128  -e payload_dir=/Users/bball/projects/sbc-android-card-imager/build/payload -e dist_dir=/Users/bball/projects/sbc-android-card-imager/dist -e image_output=/Users/bball/projects/sbc-android-card-imager/dist/rg477m.img
+[0m
+--- dry4: trimui-brick IMAGE_DEVICE=/dev/diskN
+[32mtask: [container] docker build -t sbc-imager-builder:local .
+[0m[32mtask: [image] uv run ansible-playbook ansible/build.yml -e device=trimui-brick  -e image_device=/dev/diskN -e payload_dir=/Users/bball/projects/sbc-android-card-imager/build/payload -e dist_dir=/Users/bball/projects/sbc-android-card-imager/dist -e image_output=/Users/bball/projects/sbc-android-card-imager/dist/trimui-brick.img
+[0m
+PLAY [Stage device payload and build card image] *******************************
+
+TASK [Validate payload profile] ************************************************
+ok: [localhost]
+
+TASK [Load payload profile vars] ***********************************************
+ok: [localhost]
+
+TASK [Clean and recreate payload staging directory] ****************************
+ok: [localhost] => (item=absent)
+changed: [localhost] => (item=directory)
+
+TASK [Stage Cannoli payload profile] *******************************************
+skipping: [localhost]
+
+TASK [Stage NextUI payload profile] ********************************************
+included: /Users/bball/projects/sbc-android-card-imager/ansible/tasks/payload-nextui.yml for localhost
+
+TASK [Create NextUI base directories] ******************************************
+changed: [localhost] => (item=Tools)
+
+TASK [Create NextUI platform directory] ****************************************
+changed: [localhost]
+
+TASK [Create NextUI cheats directory omitted by the pinned archive] ************
+changed: [localhost]
+
+TASK [Require a pinned archive for the NextUI profile] *************************
+fatal: [localhost]: FAILED! => {"assertion": "remote_archives | length > 0", "changed": false, "evaluated_to": false, "msg": "payload_profile 'nextui' requires at least one pinned remote_archives entry, but remote_archives is empty. Set remote_archives in the device vars file or with -e '{\"remote_archives\": [...]}'."}
+
+PLAY RECAP *********************************************************************
+localhost                  : ok=7    changed=4    unreachable=0    failed=1    skipped=1    rescued=0    ignored=0   
+
+OK: empty remote_archives rejected with a profile message
+==> Building image (1024MiB)
+exfatprogs version : 1.2.0
+/dev/loop1: clean. directories 289, files 560
+Wrote /out/nextui.img (1024MiB, label NEXTUI)
+tests/ansible-payload-nextui.sh: line 179: sfdisk: command not found
+FAIL: bad MBR start
+=== NextUI test done ===

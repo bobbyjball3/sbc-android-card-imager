@@ -1,0 +1,46 @@
+{"current": null, "done": false, "event": "progress", "message": "Loading manifest", "phase": "load", "total": null}
+{"current": null, "done": true, "event": "progress", "message": "Loaded manifest", "phase": "load", "total": null}
+{"current": null, "done": false, "event": "progress", "message": "Resolving sources", "phase": "resolve", "total": null}
+{"current": null, "done": true, "event": "progress", "message": "Resolved sources", "phase": "resolve", "total": null}
+{"current": null, "done": false, "event": "progress", "message": "Staging files", "phase": "stage", "total": null}
+{"current": null, "done": true, "event": "progress", "message": "Staged files", "phase": "stage", "total": null}
+{"event": "log", "message": "Staged 5 files in /var/folders/k6/yrllm9k147zgzk7kxn7hqr500000gn/T/sbc-build-n5ocp3vj"}
+{"current": null, "done": false, "event": "progress", "message": "Preparing assembler", "phase": "container", "total": null}
+{"event": "log", "message": "preflight ok: loop devices, mkfs.exfat, fsck.exfat, and exfat are available"}
+{"current": null, "done": true, "event": "progress", "message": "Prepared assembler", "phase": "container", "total": null}
+{"current": null, "done": false, "event": "progress", "message": "Assembling image", "phase": "assemble", "total": null}
+{"current": null, "done": false, "event": "progress", "message": "Creating sparse image", "phase": "prepare", "total": null}
+{"current": null, "done": true, "event": "progress", "message": "Created sparse image", "phase": "prepare", "total": null}
+{"current": null, "done": false, "event": "progress", "message": "Formatting exFAT", "phase": "format", "total": null}
+{"current": null, "done": true, "event": "progress", "message": "Formatted exFAT", "phase": "format", "total": null}
+{"current": 0, "done": false, "event": "progress", "message": "Copying files", "phase": "copy", "total": 7}
+{"current": 1, "done": false, "event": "progress", "message": "Copying files", "phase": "copy", "total": 7}
+{"current": 2, "done": false, "event": "progress", "message": "Copying files", "phase": "copy", "total": 7}
+{"current": 3, "done": false, "event": "progress", "message": "Copying files", "phase": "copy", "total": 7}
+{"current": 4, "done": false, "event": "progress", "message": "Copying files", "phase": "copy", "total": 7}
+{"current": 5, "done": false, "event": "progress", "message": "Copying files", "phase": "copy", "total": 7}
+{"current": 6, "done": false, "event": "progress", "message": "Copying files", "phase": "copy", "total": 7}
+{"current": 7, "done": false, "event": "progress", "message": "Copying files", "phase": "copy", "total": 7}
+{"current": 7, "done": true, "event": "progress", "message": "Copied files", "phase": "copy", "total": 7}
+{"current": null, "done": false, "event": "progress", "message": "Checking filesystem", "phase": "fsck", "total": null}
+{"current": null, "done": true, "event": "progress", "message": "Checked filesystem", "phase": "fsck", "total": null}
+{"current": 0, "done": false, "event": "progress", "message": "Verifying tree", "phase": "verify", "total": null}
+{"current": 0, "done": false, "event": "progress", "message": "Verifying tree", "phase": "verify", "total": 7}
+{"current": 1, "done": false, "event": "progress", "message": "Verifying tree", "phase": "verify", "total": 7}
+{"current": 2, "done": false, "event": "progress", "message": "Verifying tree", "phase": "verify", "total": 7}
+{"current": 3, "done": false, "event": "progress", "message": "Verifying tree", "phase": "verify", "total": 7}
+{"current": 4, "done": false, "event": "progress", "message": "Verifying tree", "phase": "verify", "total": 7}
+{"current": 5, "done": false, "event": "progress", "message": "Verifying tree", "phase": "verify", "total": 7}
+{"current": 6, "done": false, "event": "progress", "message": "Verifying tree", "phase": "verify", "total": 7}
+{"current": 7, "done": false, "event": "progress", "message": "Verifying tree", "phase": "verify", "total": 7}
+{"current": null, "done": true, "event": "progress", "message": "Verified tree", "phase": "verify", "total": null}
+{"current": null, "done": false, "event": "progress", "message": "Publishing image", "phase": "publish", "total": null}
+{"current": null, "done": true, "event": "progress", "message": "Published image", "phase": "publish", "total": null}
+{"event": "log", "message": "assembled 5 files (592 bytes) into /out/demo.img"}
+{"current": null, "done": true, "event": "progress", "message": "Assembled image", "phase": "assemble", "total": null}
+{"current": null, "done": false, "event": "progress", "message": "Verifying image", "phase": "verify-image", "total": null}
+{"event": "log", "message": "verified 7 files from /image/demo.img"}
+{"current": null, "done": true, "event": "progress", "message": "Verified image", "phase": "verify-image", "total": null}
+{"current": null, "done": false, "event": "progress", "message": "Publishing image", "phase": "publish-output", "total": null}
+{"current": null, "done": true, "event": "progress", "message": "Published image", "phase": "publish-output", "total": null}
+{"event": "log", "message": "Wrote /private/tmp/sbc-progress-json.7pXrRR/demo.img (66MiB)"}

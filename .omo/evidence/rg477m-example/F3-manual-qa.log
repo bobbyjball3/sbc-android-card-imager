@@ -1,0 +1,198 @@
+F3 FINAL-GATE MANUAL QA - RG477M EXAMPLE
+=======================================
+Verdict: APPROVE
+Timestamp (UTC): 2026-10-19T14:57:36Z
+Worktree: /Users/bball/projects/sbc-android-card-imager-wt/rg477m-example
+Branch: feat/rg477m-example
+HEAD: 0a423012e8d6b9efd7757b7f24e723b2413d97c2
+Mode: READ-ONLY source/test/doc/plan/git. Only this evidence log was written.
+Docker: 28.1.1 available.
+GITHUB_TOKEN: available (value never printed/logged); no rate-limit encountered.
+
+1. SCOPE / CLEAN START
+---------------------
+$ git -C /Users/bball/projects/sbc-android-card-imager-wt/rg477m-example status --short --branch
+## feat/rg477m-example
+
+$ git rev-parse HEAD
+0a423012e8d6b9efd7757b7f24e723b2413d97c2
+
+2. PLAN - ONLINE AND OFFLINE
+----------------------------
+Temp work dir: /var/folders/k6/yrllm9k147zgzk7kxn7hqr500000gn/T/opencode/rg477m-qa.QjmplP
+
+$ uv run sbc-imager plan --manifest examples/rg477m/rg477m.toml
+online_exit=0
+(stderr empty)
+
+Output:
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Destination                                    ┃ Kind     ┃ Size      ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━┩
+│ APKs/Obtainium.apk                             │ apk      │ 25.935MiB │
+│ Obtainium/obtainium-emulation-pack-v8.0.1.json │ artifact │ 76.368KiB │
+│ Obtainium/tailscale.json                       │ artifact │ 383B      │
+└────────────────────────────────────────────────┴──────────┴───────────┘
+Content: 26.01MiB  Overhead: 64MiB  Reserve: 8GiB
+Partition: 8.089GiB at offset 1MiB  Image: 8.09GiB
+
+$ uv run sbc-imager plan --manifest examples/rg477m/rg477m.toml --offline
+offline_exit=0
+(stderr empty)
+
+Online and offline output files were byte-identical (`diff` reported IDENTICAL).
+
+3. BUILD - BOUNDED TEMP IMAGE (NO REAL DISK)
+--------------------------------------------
+$ uv run sbc-imager build --manifest examples/rg477m/rg477m.toml --size 256MiB --output <temp>/rg477m.img --json
+build_exit=0
+
+stdout:
+{"manifest": "examples/rg477m/rg477m.toml", "image": "/private/var/folders/k6/yrllm9k147zgzk7kxn7hqr500000gn/T/opencode/rg477m-qa.QjmplP/rg477m.img", "image_bytes": 268435456, "partition_bytes": 267386880, "offset": 1048576, "content_files": 3, "content_bytes": 27273089, "sha256": "be05bf9e928302617b568a531a1f076771c1d22f45d4dbebdb6cb05c2e3f13c7", "verify": {"ok": true, "expected_files": 5, "actual_files": 5, "missing": [], "extra": [], "mismatched": [], "missing_dirs": []}, "sources": [{"id": "obtainium", "type": "github", "root": "/Users/bball/Library/Caches/sbc-imager/7790b8968893a2dc0086bfa4078446cf6643f3c47b26b0451f56e89ca9c19061/files/app-arm64-v8a-release.apk"}, {"id": "emulation-pack", "type": "github", "root": "/Users/bball/Library/Caches/sbc-imager/0ac2966f95e0136cd28b7775530f5055d86733bbeb462a80d4c5258c7f6888f5/files/obtainium-emulation-pack-v8.0.1.json"}], "warnings": [], "schema_version": 1}
+
+stderr tail:
+Staged 3 files in /var/folders/k6/yrllm9k147zgzk7kxn7hqr500000gn/T/sbc-build-nr476yvo
+preflight ok: loop devices, mkfs.exfat, fsck.exfat, and exfat are available
+assembled 3 files (27273089 bytes) into /out/rg477m.img
+verified 5 files from /image/rg477m.img
+Wrote /private/var/folders/k6/yrllm9k147zgzk7kxn7hqr500000gn/T/opencode/rg477m-qa.QjmplP/rg477m.img (256MiB)
+
+Temp artifact (removed during cleanup):
+/var/folders/k6/yrllm9k147zgzk7kxn7hqr500000gn/T/opencode/rg477m-qa.QjmplP/rg477m.img
+Size: 268435456 bytes (256 MiB); image SHA-256: be05bf9e928302617b568a531a1f076771c1d22f45d4dbebdb6cb05c2e3f13c7
+
+REQUIRED BUILD COUNTS: PASS
+content_files=3 (expected 3)
+content_bytes=27273089 (expected 27,273,089)
+verify.ok=true
+actual_files=5, expected_files=5
+missing=[], extra=[], mismatched=[], missing_dirs=[]
+
+4. VERIFY COMMAND
+-----------------
+$ uv run sbc-imager verify --manifest examples/rg477m/rg477m.toml --image <temp>/rg477m.img
+verify_exit=0
+
+stdout:
+verified 5 files from /image/rg477m.img
+Verification passed: 5 files match the manifest.
+
+stderr: empty
+
+5. READ-ONLY IMAGE INSPECTION
+-----------------------------
+Mounted the MBR/exFAT image read-only:
+$ hdiutil attach -readonly -nobrowse -noverify -noautoopen -mountpoint <temp>/mnt <temp>/rg477m.img
+/dev/disk4          	FDisk_partition_scheme
+/dev/disk4s1        	Windows_NTFS /private/var/.../rg477m-qa.QjmplP/mnt
+Mount flags included: read-only
+
+Top-level card contents:
+APKs, CREDITS.md, Cannoli, Obtainium
+
+APKs:
+-rwx------ 1 bball staff 27194505 Obtainium.apk
+
+Obtainium:
+-rwx------ 1 bball staff 78201 obtainium-emulation-pack-v8.0.1.json
+-rwx------ 1 bball staff   383 tailscale.json
+
+Inspection results (Python, using the repo's pinned `cannoli` contract):
+platform_tag_count=51
+rom_dir_count=51
+rom_dirs_match_registry=True
+required_dir_count=68
+required_dirs_missing=[]
+unexpected_rom_dirs=[]
+settings_bytes=b'{}\n'
+settings_parsed={}
+tailscale_equals_local=True
+credits_has_obtainium_gpl3=True
+credits_has_pack_unlicense=True
+apk_sha256=04dfd02c56dae8d5271d2d402977e1b07c8eeffb313df054a13e71b75b8b8a26 (27194505 bytes)
+pack_sha256=c2170687b07881f5891fe9751903c13c31b80de506bd41b718f99abb45592169 (78201 bytes)
+
+PASS:
+- APKs/Obtainium.apk exists and matches the pinned APK size/hash.
+- Both Obtainium/*.json files exist.
+- All 51 Cannoli v1.9.1 Roms tag dirs exist and match the registry exactly.
+- All 68 required dirs exist; none missing.
+- Cannoli/Config/settings.json parses to JSON {} (on-disk bytes `{}\n`, 3 bytes).
+- CREDITS.md contains Obtainium GPL-3.0 and pack Unlicense attribution.
+- APK and pack SHA-256 values match examples/rg477m/README.md.
+
+6. TAILSCALE IMPORT FILE VALIDATION
+-----------------------------------
+$ python3 -m json.tool examples/rg477m/obtainium-tailscale.json
+json_tool_exit=0
+
+Output:
+{
+    "apps": [
+        {
+            "id": "com.tailscale.ipn",
+            "url": "https://github.com/tailscale/tailscale-android",
+            "author": "tailscale",
+            "name": "Tailscale",
+            "additionalSettings": "{\"includePrereleases\":false,\"fallbackToOlderReleases\":true,\"verifyLatestTag\":false,\"sortMethodChoice\":\"date\",\"autoApkFilterByArch\":true}"
+        }
+    ],
+    "settings": null
+}
+
+Shape checks:
+top_keys=['apps', 'settings']
+settings=None
+apps_len=1
+app_keys=['additionalSettings', 'author', 'id', 'name', 'url']
+id=com.tailscale.ipn
+url=https://github.com/tailscale/tailscale-android
+author=tailscale
+name=Tailscale
+additionalSettings_parsed_type=dict
+additionalSettings_parsed={'includePrereleases': False, 'fallbackToOlderReleases': True, 'verifyLatestTag': False, 'sortMethodChoice': 'date', 'autoApkFilterByArch': True}
+all_shape_ok=True
+
+PASS: valid JSON; Obtainium apps-list shape; required id/url/author/name present; additionalSettings parses as a dict; settings is null.
+
+7. NO REAL DISK WRITTEN / NO REPO CHANGES
+-----------------------------------------
+- QA invoked only `plan`, `build --output <temp>`, `verify`, and a read-only `hdiutil attach`.
+- No `image`/flash command was run; no write was issued to /dev/disk*.
+- The image was mounted read-only as /dev/disk4 from the temp image file, then detached.
+- The only writable build output was the bounded 256 MiB temp image plus ephemeral staging under /var/folders.
+- A real internal physical disk5 (Windows_NTFS "SBC") was visible in `diskutil list`; QA never referenced, mounted, or wrote to it.
+- Source/test/doc/plan/git files were not edited. Post-QA checks:
+
+$ git rev-parse HEAD
+0a423012e8d6b9efd7757b7f24e723b2413d97c2
+
+$ git status --porcelain=v1
+(no output; porcelain_lines=0)
+
+$ git diff --stat
+(no output)
+
+$ git diff --cached --stat
+(no output)
+
+8. CLEANUP RECEIPT
+------------------
+$ hdiutil detach <temp>/mnt
+"disk4" ejected.
+mount_absent=yes
+
+$ rm -rf /var/folders/k6/yrllm9k147zgzk7kxn7hqr500000gn/T/opencode/rg477m-qa.QjmplP
+$ rm -f /tmp/rg477m-qa-workdir
+cleanup_receipt=removed /var/folders/k6/yrllm9k147zgzk7kxn7hqr500000gn/T/opencode/rg477m-qa.QjmplP
+staging_leftovers=none
+
+9. BLOCKERS
+-----------
+None. APPROVE.
+
+Non-blocking observations:
+- `Cannoli/Config/settings.json` is `{}\n` (3 bytes), i.e. JSON `{}` plus a trailing newline. It parses to `{}` and satisfies the contract.
+- Cached GitHub sources remain in ~/Library/Caches/sbc-imager; these are the normal source cache, not QA artifacts, and were not modified as source/doc/git files.
+
+Evidence path: /Users/bball/projects/sbc-android-card-imager/.omo/evidence/rg477m-example/F3-manual-qa.log
