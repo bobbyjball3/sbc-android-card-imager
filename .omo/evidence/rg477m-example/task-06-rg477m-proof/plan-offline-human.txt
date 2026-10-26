@@ -1,0 +1,9 @@
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━┓
+┃ Destination                                    ┃ Kind     ┃ Size      ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━┩
+│ APKs/Obtainium.apk                             │ apk      │ 25.935MiB │
+│ Obtainium/obtainium-emulation-pack-v8.0.1.json │ artifact │ 76.368KiB │
+│ Obtainium/tailscale.json                       │ artifact │ 383B      │
+└────────────────────────────────────────────────┴──────────┴───────────┘
+Content: 26.01MiB  Overhead: 64MiB  Reserve: 8GiB
+Partition: 8.089GiB at offset 1MiB  Image: 8.09GiB

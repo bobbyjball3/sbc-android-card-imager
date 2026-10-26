@@ -1,0 +1,12 @@
+files: 5
+  APKs/Obtainium.apk (27194505 bytes)
+  CREDITS.md (972 bytes)
+  Cannoli/Config/settings.json (3 bytes)
+  Obtainium/obtainium-emulation-pack-v8.0.1.json (78201 bytes)
+  Obtainium/tailscale.json (383 bytes)
+actual dirs: 70
+required dirs: 68
+missing required dirs: []
+Roms tag dirs: 51
+Roms tags: 32X 3DS AMIGA ATARI2600 ATARI5200 ATARI7800 COLECOVISION DC DOS FBN FDS GB GBA GBC GC GG INTELLIVISION JAGUAR LYNX MAME MD N64 NDS NEOGEO NES NGP NGPC NSW PC PCE PCFX PICO8 POKEMINI PS PS2 PS3 PSP PSVITA SATURN SCUMMVM SEGACD SG1000 SMS SNES SUPERGRAFX VECTREX VIRTUALBOY WII WIIU WS WSC
+requested tags present: True

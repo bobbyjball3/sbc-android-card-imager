@@ -1,0 +1,5 @@
+Staged 3 files in /var/folders/k6/yrllm9k147zgzk7kxn7hqr500000gn/T/sbc-build-hu0j8m3d
+preflight ok: loop devices, mkfs.exfat, fsck.exfat, and exfat are available
+assembled 3 files (27273089 bytes) into /out/rg477m.img
+verified 5 files from /image/rg477m.img
+Wrote /private/tmp/rg477m-smoke.OZDOrI/rg477m.img (256MiB)

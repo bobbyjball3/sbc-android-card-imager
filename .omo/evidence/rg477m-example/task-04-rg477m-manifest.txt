@@ -1,0 +1,139 @@
+TASK 04 - RG477M manifest and Tailscale import
+Generated: 2026-10-19T14:53:08Z
+
+== Files ==
+    1530 examples/rg477m/rg477m.toml
+     383 examples/rg477m/obtainium-tailscale.json
+    1913 total
+
+== python -m json.tool ==
+{
+    "apps": [
+        {
+            "id": "com.tailscale.ipn",
+            "url": "https://github.com/tailscale/tailscale-android",
+            "author": "tailscale",
+            "name": "Tailscale",
+            "additionalSettings": "{\"includePrereleases\":false,\"fallbackToOlderReleases\":true,\"verifyLatestTag\":false,\"sortMethodChoice\":\"date\",\"autoApkFilterByArch\":true}"
+        }
+    ],
+    "settings": null
+}
+json.tool exit=0
+
+== Tailscale shape check ==
+{'bytes': 383, 'trailing_newline': True, 'settings': None}
+{'id': 'com.tailscale.ipn', 'url': 'https://github.com/tailscale/tailscale-android', 'author': 'tailscale', 'name': 'Tailscale'}
+{'includePrereleases': False, 'fallbackToOlderReleases': True, 'verifyLatestTag': False, 'sortMethodChoice': 'date', 'autoApkFilterByArch': True}
+
+== Manifest load / validate / destinations ==
+image: ImageConfig(name='rg477m', label='CANNOLI', size='auto', reserve='8GiB', output=PosixPath('/Users/bball/projects/sbc-android-card-imager-wt/rg477m-example/examples/rg477m/dist/rg477m.img'))
+sources: [('obtainium', 'github', 'ImranR98/Obtainium', 'v1.7.1', 'app-arm64-v8a-release.apk'), ('emulation-pack', 'github', 'RJNY/Obtainium-Emulation-Pack', 'v8.0.1', 'obtainium-emulation-pack-v8.0.1.json')]
+apks: (ApkEntry(path=None, source='obtainium', as_='Obtainium.apk'),)
+artifacts: (ArtifactEntry(root='card', dest='Obtainium', path=None, source='emulation-pack', as_='obtainium-emulation-pack-v8.0.1.json'), ArtifactEntry(root='card', dest='Obtainium', path=PosixPath('/Users/bball/projects/sbc-android-card-imager-wt/rg477m-example/examples/rg477m/obtainium-tailscale.json'), source=None, as_='tailscale.json'))
+warnings: []
+destinations: ['APKs/Obtainium.apk', 'Obtainium/obtainium-emulation-pack-v8.0.1.json', 'Obtainium/tailscale.json']
+
+== Live plan (online) JSON sizes ==
+{
+  "sizes": {
+    "content_bytes": 27273089,
+    "overhead_bytes": 67108864,
+    "reserve_bytes": 8589934592,
+    "partition_offset_bytes": 1048576,
+    "partition_bytes": 8685355008,
+    "image_bytes": 8686403584
+  },
+  "warnings": [],
+  "entries": [
+    {
+      "dest": "APKs/Obtainium.apk",
+      "kind": "apk",
+      "size": 27194505,
+      "source": "obtainium"
+    },
+    {
+      "dest": "Obtainium/obtainium-emulation-pack-v8.0.1.json",
+      "kind": "artifact",
+      "size": 78201,
+      "source": "emulation-pack"
+    },
+    {
+      "dest": "Obtainium/tailscale.json",
+      "kind": "artifact",
+      "size": 383,
+      "source": null
+    }
+  ],
+  "sources": [
+    {
+      "id": "obtainium",
+      "type": "github",
+      "root": "/Users/bball/Library/Caches/sbc-imager/7790b8968893a2dc0086bfa4078446cf6643f3c47b26b0451f56e89ca9c19061/files/app-arm64-v8a-release.apk"
+    },
+    {
+      "id": "emulation-pack",
+      "type": "github",
+      "root": "/Users/bball/Library/Caches/sbc-imager/0ac2966f95e0136cd28b7775530f5055d86733bbeb462a80d4c5258c7f6888f5/files/obtainium-emulation-pack-v8.0.1.json"
+    }
+  ]
+}
+
+== Live plan (offline) JSON sizes ==
+{
+  "sizes": {
+    "content_bytes": 27273089,
+    "overhead_bytes": 67108864,
+    "reserve_bytes": 8589934592,
+    "partition_offset_bytes": 1048576,
+    "partition_bytes": 8685355008,
+    "image_bytes": 8686403584
+  },
+  "warnings": [],
+  "entries": [
+    {
+      "dest": "APKs/Obtainium.apk",
+      "kind": "apk",
+      "size": 27194505,
+      "source": "obtainium"
+    },
+    {
+      "dest": "Obtainium/obtainium-emulation-pack-v8.0.1.json",
+      "kind": "artifact",
+      "size": 78201,
+      "source": "emulation-pack"
+    },
+    {
+      "dest": "Obtainium/tailscale.json",
+      "kind": "artifact",
+      "size": 383,
+      "source": null
+    }
+  ]
+}
+
+== Source provenance (cache source.json) ==
+-- /Users/bball/Library/Caches/sbc-imager/0ac2966f95e0136cd28b7775530f5055d86733bbeb462a80d4c5258c7f6888f5/source.json
+{
+  "asset": "obtainium-emulation-pack-v8.0.1.json",
+  "attribution": "RJNY/Obtainium-Emulation-Pack (https://github.com/RJNY/Obtainium-Emulation-Pack/releases/tag/v8.0.1)",
+  "license": "Unlicense",
+  "release_url": "https://github.com/RJNY/Obtainium-Emulation-Pack/releases/tag/v8.0.1",
+  "repo": "RJNY/Obtainium-Emulation-Pack",
+  "sha256": "c2170687b07881f5891fe9751903c13c31b80de506bd41b718f99abb45592169",
+  "size": "78201",
+  "tag": "v8.0.1",
+  "url": "https://github.com/RJNY/Obtainium-Emulation-Pack/releases/download/v8.0.1/obtainium-emulation-pack-v8.0.1.json"
+}
+-- /Users/bball/Library/Caches/sbc-imager/7790b8968893a2dc0086bfa4078446cf6643f3c47b26b0451f56e89ca9c19061/source.json
+{
+  "asset": "app-arm64-v8a-release.apk",
+  "attribution": "ImranR98/Obtainium (https://github.com/ImranR98/Obtainium/releases/tag/v1.7.1)",
+  "license": "GPL-3.0",
+  "release_url": "https://github.com/ImranR98/Obtainium/releases/tag/v1.7.1",
+  "repo": "ImranR98/Obtainium",
+  "sha256": "04dfd02c56dae8d5271d2d402977e1b07c8eeffb313df054a13e71b75b8b8a26",
+  "size": "27194505",
+  "tag": "v1.7.1",
+  "url": "https://github.com/ImranR98/Obtainium/releases/download/v1.7.1/app-arm64-v8a-release.apk"
+}

@@ -1,0 +1,15 @@
+Task 02: artifact source planner/CLI/verify wiring
+Date: 2026-10-19T14:42:47Z
+
+Commands:
+  uv run pytest tests/unit/test_planner.py tests/unit/test_cli_plan.py tests/unit/test_verify.py -q
+..................................................................       [100%]
+66 passed in 1.38s
+
+  task lint
+[32mtask: [lint] uv run ruff check .
+[0mAll checks passed!
+[32mtask: [lint] uv run ruff format --check .
+[0m75 files already formatted
+[32mtask: [lint] uv run pyright
+[0m0 errors, 0 warnings, 0 informations

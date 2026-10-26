@@ -1,0 +1,25 @@
+=== task lint ===
+[32mtask: [lint] shellcheck container/build-image.sh tests/*.sh
+[0m[32mtask: [lint] uv run ansible-lint ansible/
+[0mWARNING: PATH altered to expand ~ in it. Read https://stackoverflow.com/a/44704799/99834 and correct your system configuration.
+
+[32mPassed[0m: 0 failure(s), 0 warning(s) in 8 files processed of 9 encountered. Last profile that met the validation criteria was 'production'.
+
+=== task validate ===
+
+playbook: ansible/build.yml
+[32mtask: [validate] uv run ansible-playbook ansible/build.yml --syntax-check -e device=trimui-brick -e image_size_mib=1024
+[0m[WARNING]: No inventory was parsed, only implicit localhost is available
+[WARNING]: provided hosts list is empty, only localhost is available. Note that
+the implicit localhost does not match 'all'
+
+playbook: ansible/build.yml
+
+=== ansible-lint ===
+WARNING: PATH altered to expand ~ in it. Read https://stackoverflow.com/a/44704799/99834 and correct your system configuration.
+
+[32mPassed[0m: 0 failure(s), 0 warning(s) in 8 files processed of 9 encountered. Last profile that met the validation criteria was 'production'.
+
+=== shellcheck ===
+
+=== git diff --check ===

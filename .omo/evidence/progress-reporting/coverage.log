@@ -1,0 +1,54 @@
+........................................................................ [ 10%]
+........................................................................ [ 21%]
+........................................................................ [ 32%]
+........................................................................ [ 43%]
+.s...................................................................... [ 54%]
+........................................................................ [ 65%]
+........................................................................ [ 76%]
+........................................................................ [ 87%]
+........................................................................ [ 98%]
+............                                                             [100%]
+================================ tests coverage ================================
+______________ coverage: platform darwin, python 3.12.14-final-0 _______________
+
+Name                                        Stmts   Miss  Cover   Missing
+-------------------------------------------------------------------------
+src/sbc_imager/__init__.py                      1      0   100%
+src/sbc_imager/__main__.py                      2      2     0%   1-3
+src/sbc_imager/assembler.py                   167     21    87%   46, 54, 90, 106, 185, 214-215, 260-287, 296
+src/sbc_imager/assembler_report.py            182     19    90%   88, 102, 109, 120, 143, 157, 176, 187-190, 195, 204, 211, 215, 240, 245, 276, 280
+src/sbc_imager/assembler_steps.py             135      2    99%   60-61
+src/sbc_imager/assembler_verify.py            102      8    92%   84-85, 87, 106-111, 125, 152
+src/sbc_imager/build.py                       182     19    90%   91-140, 170-171, 180-181, 199-201, 213, 272
+src/sbc_imager/cannoli.py                      78      9    88%   272-286, 290
+src/sbc_imager/cli.py                         180      9    95%   109, 117-124, 263
+src/sbc_imager/cli_image.py                   105      4    96%   40-41, 151, 168
+src/sbc_imager/cli_verify.py                   34      0   100%
+src/sbc_imager/config.py                      207      9    96%   133, 146-147, 152, 161, 239, 258, 299, 315
+src/sbc_imager/container.py                    69      2    97%   175, 202
+src/sbc_imager/errors.py                       28      0   100%
+src/sbc_imager/fs.py                           83     10    88%   49-51, 54-57, 65, 92, 98
+src/sbc_imager/imaging.py                     191     17    91%   126, 189, 208, 210-211, 213, 256-257, 263, 267, 284, 291, 293, 309, 316, 320-321
+src/sbc_imager/imaging_write.py               157     14    91%   84, 127-128, 141, 147, 149, 154, 163, 222, 240, 253-262
+src/sbc_imager/mbr.py                          21      0   100%
+src/sbc_imager/planner.py                     179      9    95%   76, 80, 116-117, 140, 165, 190, 282, 314
+src/sbc_imager/progress.py                     85      8    91%   68, 82, 89, 114, 118, 123, 125, 127
+src/sbc_imager/runner.py                       59      0   100%
+src/sbc_imager/sizes.py                        46      5    89%   31-32, 34, 47-48
+src/sbc_imager/sources.py                     131      1    99%   209
+src/sbc_imager/sources_git.py                 155     15    90%   59, 68, 71, 73, 149-155, 160, 162, 182-183, 187-189
+src/sbc_imager/sources_github.py              253     28    89%   62, 85, 144, 147, 159, 162, 171, 173, 184, 189, 214, 217, 219, 243, 267, 272-273, 323-325, 337, 343, 349, 354, 357-358, 375, 392
+src/sbc_imager/staging.py                      73      1    99%   118
+src/sbc_imager/validation.py                   38      1    97%   38
+src/sbc_imager/validation_checks.py           132     13    90%   21, 25, 36, 55, 59, 70, 77, 93, 102, 105, 118, 128, 134
+src/sbc_imager/validation_common.py            17      0   100%
+src/sbc_imager/validation_destinations.py     108      7    94%   55, 119-120, 135, 145-146, 152
+src/sbc_imager/validation_exfat.py             44      1    98%   31
+src/sbc_imager/validation_local.py             53      3    94%   40, 57, 65
+src/sbc_imager/verify.py                      142     15    89%   98, 101, 110-118, 136, 141, 159, 164, 171, 244, 259
+-------------------------------------------------------------------------
+TOTAL                                        3439    252    93%
+Required test coverage of 85% reached. Total coverage: 92.67%
+=========================== short test summary info ============================
+SKIPPED [1] tests/unit/test_fs.py:156: filesystem does not report sparse holes
+659 passed, 1 skipped, 3 deselected in 6.25s

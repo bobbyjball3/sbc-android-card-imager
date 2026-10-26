@@ -1,0 +1,30 @@
+Task 03: single-file artifact source documentation
+Date: 2026-10-19T14:43:22Z
+
+Commands:
+  uv run pytest tests/unit/test_docs.py -q
+..........                                                               [100%]
+10 passed in 0.26s
+
+  uv run pytest -m "not integration" -q
+=========================== short test summary info ============================
+SKIPPED [1] tests/unit/test_fs.py:156: filesystem does not report sparse holes
+581 passed, 1 skipped, 3 deselected in 4.34s
+
+Checks: no stale "artifact source is unknown" or "artifacts must be local" text in docs/README/AGENTS;
+the new <!-- valid-manifest --> block is parsed by test_manifest_doc_when_valid_toml_blocks_are_loaded_all_parse.
+
+=== Final verification (Wave 1) ===
+Branch: feat/rg477m-example
+Base: 0563975
+HEAD: 4e8ecef7f707ae0ad42b19151563839ef4331e92
+
+uv run pytest -m "not integration" -q
+  581 passed, 1 skipped, 3 deselected
+
+uv run pytest -m "not integration" -q --cov=sbc_imager --cov-report=term-missing --cov-fail-under=85
+  581 passed, 1 skipped, 3 deselected; coverage 92.65% (>= 85%)
+
+task lint: ruff check passed; ruff format check 75 files; pyright 0 errors
+uv run pre-commit run --all-files: ruff check, ruff format, pyright, pytest-unit all passed
+git diff --check main..HEAD: exit 0

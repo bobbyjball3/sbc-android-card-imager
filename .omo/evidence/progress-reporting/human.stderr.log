@@ -1,0 +1,46 @@
+load: Loading manifest
+load: Loaded manifest (0.0s)
+resolve: Resolving sources
+resolve: Resolved sources (0.0s)
+stage: Staging files
+stage: Staged files (0.0s)
+Staged 5 files in /var/folders/k6/yrllm9k147zgzk7kxn7hqr500000gn/T/sbc-build-yfh2fuht
+container: Preparing assembler
+preflight ok: loop devices, mkfs.exfat, fsck.exfat, and exfat are available
+container: Prepared assembler (0.3s)
+assemble: Assembling image
+prepare: Creating sparse image
+prepare: Created sparse image (0.0s)
+format: Formatting exFAT
+format: Formatted exFAT (0.0s)
+copy: Copying files 0/7
+copy: Copying files 1/7
+copy: Copying files 2/7
+copy: Copying files 3/7
+copy: Copying files 4/7
+copy: Copying files 5/7
+copy: Copying files 6/7
+copy: Copying files 7/7
+copy: Copied files 7/7 (0.0s)
+fsck: Checking filesystem
+fsck: Checked filesystem (0.0s)
+verify: Verifying tree
+verify: Verifying tree 0/7
+verify: Verifying tree 1/7
+verify: Verifying tree 2/7
+verify: Verifying tree 3/7
+verify: Verifying tree 4/7
+verify: Verifying tree 5/7
+verify: Verifying tree 6/7
+verify: Verifying tree 7/7
+verify: Verified tree (0.0s)
+publish: Publishing image
+publish: Published image (0.0s)
+assembled 5 files (592 bytes) into /out/demo.img
+assemble: Assembled image (0.3s)
+verify-image: Verifying image
+verified 7 files from /image/demo.img
+verify-image: Verified image (0.3s)
+publish-output: Publishing image
+publish-output: Published image (0.0s)
+Wrote /private/tmp/sbc-progress-human.FJwPhH/demo.img (66MiB)

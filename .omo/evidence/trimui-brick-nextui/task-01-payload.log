@@ -1,0 +1,235 @@
+==> Running payload staging for trimui-brick
+[WARNING]: No inventory was parsed, only implicit localhost is available
+[WARNING]: provided hosts list is empty, only localhost is available. Note that
+the implicit localhost does not match 'all'
+
+PLAY [Stage device payload and build card image] *******************************
+
+TASK [Validate payload profile] ************************************************
+ok: [localhost]
+
+TASK [Load payload profile vars] ***********************************************
+ok: [localhost]
+
+TASK [Clean and recreate payload staging directory] ****************************
+changed: [localhost] => (item=absent)
+changed: [localhost] => (item=directory)
+
+TASK [Stage Cannoli payload profile] *******************************************
+skipping: [localhost]
+
+TASK [Stage NextUI payload profile] ********************************************
+included: /Users/bball/projects/sbc-android-card-imager/ansible/tasks/payload-nextui.yml for localhost
+
+TASK [Create NextUI base directories] ******************************************
+changed: [localhost] => (item=Tools)
+
+TASK [Create NextUI platform directory] ****************************************
+changed: [localhost]
+
+TASK [Create NextUI cheats directory omitted by the pinned archive] ************
+changed: [localhost]
+
+TASK [Require a pinned archive for the NextUI profile] *************************
+ok: [localhost]
+
+TASK [Ensure archive cache directory exists] ***********************************
+ok: [localhost]
+
+TASK [Create remote archive destination directories] ***************************
+ok: [localhost] => (item={'repo': 'LoveRetro/NextUI', 'tag': 'v6.15.0', 'asset': 'NextUI-20261013-0-all.zip', 'sha256': 'd5edceaa92d0264f34da87f017a40fb8244dc3081f894f17c6979ffe94c4c38a', 'dest': '.'})
+changed: [localhost] => (item={'repo': 'rommapp/grout', 'tag': 'v5.4.0.0', 'asset': 'Grout.pak.zip', 'sha256': 'eb5ffa37aca0d484e1c8c16f16c8cf4e7a74f798d5a023ea907f99d6cea45328', 'dest': 'Tools/tg5040'})
+
+TASK [Stat existing cached remote archives] ************************************
+ok: [localhost] => (item={'repo': 'LoveRetro/NextUI', 'tag': 'v6.15.0', 'asset': 'NextUI-20261013-0-all.zip', 'sha256': 'd5edceaa92d0264f34da87f017a40fb8244dc3081f894f17c6979ffe94c4c38a', 'dest': '.'})
+ok: [localhost] => (item={'repo': 'rommapp/grout', 'tag': 'v5.4.0.0', 'asset': 'Grout.pak.zip', 'sha256': 'eb5ffa37aca0d484e1c8c16f16c8cf4e7a74f798d5a023ea907f99d6cea45328', 'dest': 'Tools/tg5040'})
+
+TASK [Reject corrupted cached remote archives] *********************************
+ok: [localhost] => (item=NextUI-20261013-0-all.zip)
+ok: [localhost] => (item=Grout.pak.zip)
+
+TASK [Download pinned remote archives to cache] ********************************
+changed: [localhost] => (item={'repo': 'LoveRetro/NextUI', 'tag': 'v6.15.0', 'asset': 'NextUI-20261013-0-all.zip', 'sha256': 'd5edceaa92d0264f34da87f017a40fb8244dc3081f894f17c6979ffe94c4c38a', 'dest': '.'})
+changed: [localhost] => (item={'repo': 'rommapp/grout', 'tag': 'v5.4.0.0', 'asset': 'Grout.pak.zip', 'sha256': 'eb5ffa37aca0d484e1c8c16f16c8cf4e7a74f798d5a023ea907f99d6cea45328', 'dest': 'Tools/tg5040'})
+
+TASK [Stat cached remote archives] *********************************************
+ok: [localhost] => (item={'repo': 'LoveRetro/NextUI', 'tag': 'v6.15.0', 'asset': 'NextUI-20261013-0-all.zip', 'sha256': 'd5edceaa92d0264f34da87f017a40fb8244dc3081f894f17c6979ffe94c4c38a', 'dest': '.'})
+ok: [localhost] => (item={'repo': 'rommapp/grout', 'tag': 'v5.4.0.0', 'asset': 'Grout.pak.zip', 'sha256': 'eb5ffa37aca0d484e1c8c16f16c8cf4e7a74f798d5a023ea907f99d6cea45328', 'dest': 'Tools/tg5040'})
+
+TASK [Verify cached remote archive checksums] **********************************
+ok: [localhost] => (item=NextUI-20261013-0-all.zip)
+ok: [localhost] => (item=Grout.pak.zip)
+
+TASK [Extract pinned remote archives into payload] *****************************
+changed: [localhost] => (item={'repo': 'LoveRetro/NextUI', 'tag': 'v6.15.0', 'asset': 'NextUI-20261013-0-all.zip', 'sha256': 'd5edceaa92d0264f34da87f017a40fb8244dc3081f894f17c6979ffe94c4c38a', 'dest': '.'})
+changed: [localhost] => (item={'repo': 'rommapp/grout', 'tag': 'v5.4.0.0', 'asset': 'Grout.pak.zip', 'sha256': 'eb5ffa37aca0d484e1c8c16f16c8cf4e7a74f798d5a023ea907f99d6cea45328', 'dest': 'Tools/tg5040'})
+
+TASK [Make Grout pak launcher and binary executable] ***************************
+ok: [localhost] => (item=launch.sh)
+ok: [localhost] => (item=grout)
+
+TASK [Create remote asset destination directories] *****************************
+skipping: [localhost]
+
+TASK [Download remote release assets] ******************************************
+skipping: [localhost]
+
+TASK [Create local file destination directories] *******************************
+skipping: [localhost]
+
+TASK [Copy local payload files] ************************************************
+skipping: [localhost]
+
+TASK [Copy local payload directories] ******************************************
+skipping: [localhost]
+
+TASK [Query target device geometry] ********************************************
+skipping: [localhost]
+
+TASK [Ensure build directory exists] *******************************************
+skipping: [localhost]
+
+TASK [Write device plist for parsing] ******************************************
+skipping: [localhost]
+
+TASK [Extract whole-disk flag] *************************************************
+skipping: [localhost]
+
+TASK [Assert target is a whole disk] *******************************************
+skipping: [localhost]
+
+TASK [Extract total device size] ***********************************************
+skipping: [localhost]
+
+TASK [Compute image size in MiB] ***********************************************
+skipping: [localhost]
+
+TASK [Validate image size] *****************************************************
+ok: [localhost] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [Validate NextUI minimum image size] **************************************
+ok: [localhost]
+
+TASK [Show resolved image size and output path] ********************************
+ok: [localhost] => {
+    "msg": [
+        "image_size_mib: 1024",
+        "image_output: dist/trimui-brick.img"
+    ]
+}
+
+TASK [Ensure distribution directory exists] ************************************
+ok: [localhost]
+
+TASK [Resolve host uid] ********************************************************
+ok: [localhost]
+
+TASK [Resolve host gid] ********************************************************
+ok: [localhost]
+
+PLAY RECAP *********************************************************************
+localhost                  : ok=23   changed=7    unreachable=0    failed=0    skipped=13   rescued=0    ignored=0   
+
+==> Tree assertions passed
+==> Staging with a corrupted cached Grout.pak.zip (expect failure)
+[WARNING]: No inventory was parsed, only implicit localhost is available
+[WARNING]: provided hosts list is empty, only localhost is available. Note that
+the implicit localhost does not match 'all'
+
+PLAY [Stage device payload and build card image] *******************************
+
+TASK [Validate payload profile] ************************************************
+ok: [localhost]
+
+TASK [Load payload profile vars] ***********************************************
+ok: [localhost]
+
+TASK [Clean and recreate payload staging directory] ****************************
+ok: [localhost] => (item=absent)
+changed: [localhost] => (item=directory)
+
+TASK [Stage Cannoli payload profile] *******************************************
+skipping: [localhost]
+
+TASK [Stage NextUI payload profile] ********************************************
+included: /Users/bball/projects/sbc-android-card-imager/ansible/tasks/payload-nextui.yml for localhost
+
+TASK [Create NextUI base directories] ******************************************
+changed: [localhost] => (item=Tools)
+
+TASK [Create NextUI platform directory] ****************************************
+changed: [localhost]
+
+TASK [Create NextUI cheats directory omitted by the pinned archive] ************
+changed: [localhost]
+
+TASK [Require a pinned archive for the NextUI profile] *************************
+ok: [localhost]
+
+TASK [Ensure archive cache directory exists] ***********************************
+ok: [localhost]
+
+TASK [Create remote archive destination directories] ***************************
+ok: [localhost] => (item={'repo': 'LoveRetro/NextUI', 'tag': 'v6.15.0', 'asset': 'NextUI-20261013-0-all.zip', 'sha256': 'd5edceaa92d0264f34da87f017a40fb8244dc3081f894f17c6979ffe94c4c38a', 'dest': '.'})
+changed: [localhost] => (item={'repo': 'rommapp/grout', 'tag': 'v5.4.0.0', 'asset': 'Grout.pak.zip', 'sha256': 'eb5ffa37aca0d484e1c8c16f16c8cf4e7a74f798d5a023ea907f99d6cea45328', 'dest': 'Tools/tg5040'})
+
+TASK [Stat existing cached remote archives] ************************************
+ok: [localhost] => (item={'repo': 'LoveRetro/NextUI', 'tag': 'v6.15.0', 'asset': 'NextUI-20261013-0-all.zip', 'sha256': 'd5edceaa92d0264f34da87f017a40fb8244dc3081f894f17c6979ffe94c4c38a', 'dest': '.'})
+ok: [localhost] => (item={'repo': 'rommapp/grout', 'tag': 'v5.4.0.0', 'asset': 'Grout.pak.zip', 'sha256': 'eb5ffa37aca0d484e1c8c16f16c8cf4e7a74f798d5a023ea907f99d6cea45328', 'dest': 'Tools/tg5040'})
+
+TASK [Reject corrupted cached remote archives] *********************************
+ok: [localhost] => (item=NextUI-20261013-0-all.zip)
+failed: [localhost] (item=Grout.pak.zip) => {"ansible_loop_var": "item", "assertion": "not item.stat.exists or item.stat.checksum == item.item.sha256", "changed": false, "evaluated_to": false, "item": {"ansible_loop_var": "item", "changed": false, "failed": false, "invocation": {"module_args": {"checksum_algorithm": "sha256", "follow": false, "get_attributes": true, "get_checksum": true, "get_mime": true, "path": "/var/folders/k6/yrllm9k147zgzk7kxn7hqr500000gn/T/tmp.FTXZ9qosaL/bad-cache/Grout.pak.zip"}}, "item": {"asset": "Grout.pak.zip", "dest": "Tools/tg5040", "repo": "rommapp/grout", "sha256": "eb5ffa37aca0d484e1c8c16f16c8cf4e7a74f798d5a023ea907f99d6cea45328", "tag": "v5.4.0.0"}, "stat": {"atime": 1792888272.6690657, "attr_flags": "", "attributes": [], "birthtime": 1792888272.6690657, "block_size": 4096, "blocks": 8, "charset": "us-ascii", "checksum": "11d510e067d2cdcd7559bd86d27a2f4c20babd43670346b97af99b522c1f0075", "ctime": 1792888272.7173615, "dev": 16777234, "device_type": 0, "executable": false, "exists": true, "flags": 0, "generation": 0, "gid": 20, "gr_name": "staff", "inode": 160096456, "isblk": false, "ischr": false, "isdir": false, "isfifo": false, "isgid": false, "islnk": false, "isreg": true, "issock": false, "isuid": false, "mimetype": "text/plain", "mode": "0644", "mtime": 1792888272.7173615, "nlink": 1, "path": "/var/folders/k6/yrllm9k147zgzk7kxn7hqr500000gn/T/tmp.FTXZ9qosaL/bad-cache/Grout.pak.zip", "pw_name": "bball", "readable": true, "rgrp": true, "roth": true, "rusr": true, "size": 7, "uid": 501, "version": null, "wgrp": false, "woth": false, "writeable": true, "wusr": true, "xgrp": false, "xoth": false, "xusr": false}}, "msg": "Cached archive Grout.pak.zip does not match its pinned SHA-256 (expected eb5ffa37aca0d484e1c8c16f16c8cf4e7a74f798d5a023ea907f99d6cea45328, got 11d510e067d2cdcd7559bd86d27a2f4c20babd43670346b97af99b522c1f0075). Delete it from /var/folders/k6/yrllm9k147zgzk7kxn7hqr500000gn/T/tmp.FTXZ9qosaL/bad-cache and rebuild."}
+
+PLAY RECAP *********************************************************************
+localhost                  : ok=11   changed=5    unreachable=0    failed=1    skipped=1    rescued=0    ignored=0   
+
+OK: corrupted cache rejected with a checksum/delete message
+==> Staging with empty remote_archives (expect failure)
+[WARNING]: No inventory was parsed, only implicit localhost is available
+[WARNING]: provided hosts list is empty, only localhost is available. Note that
+the implicit localhost does not match 'all'
+
+PLAY [Stage device payload and build card image] *******************************
+
+TASK [Validate payload profile] ************************************************
+ok: [localhost]
+
+TASK [Load payload profile vars] ***********************************************
+ok: [localhost]
+
+TASK [Clean and recreate payload staging directory] ****************************
+ok: [localhost] => (item=absent)
+changed: [localhost] => (item=directory)
+
+TASK [Stage Cannoli payload profile] *******************************************
+skipping: [localhost]
+
+TASK [Stage NextUI payload profile] ********************************************
+included: /Users/bball/projects/sbc-android-card-imager/ansible/tasks/payload-nextui.yml for localhost
+
+TASK [Create NextUI base directories] ******************************************
+changed: [localhost] => (item=Tools)
+
+TASK [Create NextUI platform directory] ****************************************
+changed: [localhost]
+
+TASK [Create NextUI cheats directory omitted by the pinned archive] ************
+changed: [localhost]
+
+TASK [Require a pinned archive for the NextUI profile] *************************
+fatal: [localhost]: FAILED! => {"assertion": "remote_archives | length > 0", "changed": false, "evaluated_to": false, "msg": "payload_profile 'nextui' requires at least one pinned remote_archives entry, but remote_archives is empty. Set remote_archives in the device vars file or with -e '{\"remote_archives\": [...]}'."}
+
+PLAY RECAP *********************************************************************
+localhost                  : ok=7    changed=4    unreachable=0    failed=1    skipped=1    rescued=0    ignored=0   
+
+OK: empty remote_archives rejected with a profile message
+==> Building image (1024MiB)
+exfatprogs version : 1.2.0
+/dev/loop1: clean. directories 289, files 560
+Wrote /out/nextui.img (1024MiB, label NEXTUI)
+tests/ansible-payload-nextui.sh: line 179: sfdisk: command not found
+FAIL: bad MBR start

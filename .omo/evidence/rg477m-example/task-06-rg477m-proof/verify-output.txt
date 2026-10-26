@@ -1,0 +1,2 @@
+verified 5 files from /image/rg477m.img
+Verification passed: 5 files match the manifest.

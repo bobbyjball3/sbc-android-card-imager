@@ -1,0 +1,334 @@
+# F3 final-gate manual QA - re-validation
+
+- Verdict: **APPROVE**
+- Date: 2026-10-19 (local, America/New_York)
+- Worktree: `/Users/bball/projects/sbc-android-card-imager-wt/sbc-android-card-imager-wave-3`
+- Branch: `feat/sbc-imager-wave-3`
+- Final HEAD: `13b6751946c690aa55a5e51faa51965be401d53d` (`13b6751`)
+- `main`: `0fb6379f891bc0c1dd47f9998bb3173cc41a32eb` (`0fb6379`)
+- Working tree: clean (0 changed files); no source, test, docs, plan, or git state was modified.
+- Host: macOS 15.6.1 (24G90), Darwin 24.6.0, arm64 (Apple M3 Max)
+- Docker: server/client 28.1.1
+- QA scratch dir: `/tmp/sbc-f3-final.Zs2zuG` (contains all raw logs and `demo.img`)
+
+## Commands and results
+
+### 1. Fresh container build from the pinned Dockerfile
+
+Command (run from the wave-3 worktree):
+
+```shell
+docker build --no-cache --progress=plain -t sbc-imager-assembler:local .
+```
+
+Result: build completed; log ends with:
+
+```text
+#11 exporting to image
+#11 exporting layers 0.1s done
+#11 writing image sha256:7f8c9f35641e4c5ee31cc6eef2487073e905337f14be2c1ba592d8e06df1180e done
+#11 naming to docker.io/library/sbc-imager-assembler:local done
+#11 DONE 0.1s
+```
+
+The `--no-cache` apt layer installed the exact pins from the Dockerfile:
+
+```text
+e2fsprogs is already the newest version (1.47.0-2+b2).
+util-linux is already the newest version (2.38.1-5+deb12u3).
+Setting up exfatprogs (1.2.0-1+deb12u1) ...
+Setting up libfdisk1:arm64 (2.38.1-5+deb12u3) ...
+Setting up fdisk (2.38.1-5+deb12u3) ...
+```
+
+Post-build package versions inside the final image:
+
+```text
+e2fsprogs	1.47.0-2+b2
+exfatprogs	1.2.0-1+deb12u1
+fdisk	2.38.1-5+deb12u3
+util-linux	2.38.1-5+deb12u3
+```
+
+Privileged preflight (also invoked by the E2E build):
+
+```shell
+docker run --rm --privileged --network none sbc-imager-assembler:local \
+  python -m sbc_imager.assembler --preflight
+preflight ok: loop devices, mkfs.exfat, fsck.exfat, and exfat are available
+PREFLIGHT_EXIT=0
+```
+
+Raw log: `/tmp/sbc-f3-final.Zs2zuG/docker-build.log`
+
+### 2. Full E2E build (not just preflight)
+
+Command:
+
+```shell
+uv run sbc-imager build --manifest examples/imager.toml \
+  --size 66MiB --output /tmp/sbc-f3-final.Zs2zuG/demo.img --json
+BUILD_EXIT=0
+```
+
+stdout (valid single-line JSON):
+
+```json
+{"manifest": "examples/imager.toml", "image": "/private/tmp/sbc-f3-final.Zs2zuG/demo.img", "image_bytes": 69206016, "partition_bytes": 68157440, "offset": 1048576, "content_files": 8, "content_bytes": 830, "sha256": "27168ee64afec1b58ee4ea6b075e78939824e36ffffaf3fe31a6a0b6bb7153fa", "verify": {"ok": true, "expected_files": 10, "actual_files": 10, "missing": [], "extra": [], "mismatched": [], "missing_dirs": []}, "sources": [], "warnings": [], "schema_version": 1}
+```
+
+stderr:
+
+```text
+Staged 8 files in /var/folders/k6/yrllm9k147zgzk7kxn7hqr500000gn/T/sbc-build-plv1hjlu
+preflight ok: loop devices, mkfs.exfat, fsck.exfat, and exfat are available
+assembled 8 files (830 bytes) into /out/demo.img
+verified 10 files from /image/demo.img
+Wrote /private/tmp/sbc-f3-final.Zs2zuG/demo.img (66MiB)
+```
+
+Artifact:
+
+```text
+/tmp/sbc-f3-final.Zs2zuG/demo.img
+size   69206016 bytes (66MiB)
+sha256 27168ee64afec1b58ee4ea6b075e78939824e36ffffaf3fe31a6a0b6bb7153fa
+report /tmp/sbc-f3-final.Zs2zuG/demo.img.report.json
+```
+
+E2E proves the freshly rebuilt pinned container can assemble and verify the image,
+including exFAT creation, MBR writing, container-side fsck, and manifest hash
+comparison.
+
+Raw logs: `build.stdout.json`, `build.stderr.log`, `build.exit`,
+`demo.img.report.json`.
+
+### 3. CLI verify
+
+Command:
+
+```shell
+uv run sbc-imager verify --manifest examples/imager.toml \
+  --image /tmp/sbc-f3-final.Zs2zuG/demo.img
+VERIFY_EXIT=0
+```
+
+stdout:
+
+```text
+verified 10 files from /image/demo.img
+Verification passed: 10 files match the manifest.
+```
+
+stderr: empty.
+
+Raw logs: `verify.stdout.log`, `verify.stderr.log`, `verify.exit`.
+
+### 4. Independent image inspection with the pinned container
+
+Ran `sfdisk`, `fsck.exfat`, loop-attached the partition (`offset=1048576`,
+`sizelimit=68157440`), mounted it read-only, and asserted the tree.
+
+```shell
+docker run --rm -i --privileged --network none \
+  -v /tmp/sbc-f3-final.Zs2zuG:/work:ro \
+  -e TAGS="<51 comma-separated PLATFORM_TAGS>" \
+  sbc-imager-assembler:local bash -s
+```
+
+`sfdisk -d`:
+
+```text
+label: dos
+label-id: 0x00000000
+device: /work/demo.img
+unit: sectors
+sector-size: 512
+
+/work/demo.img1 : start=        2048, size=      133120, type=7
+PARTITION_ASSERT=one partition type=7 start=2048
+```
+
+Exactly one partition; type `7`; start LBA `2048` (0x800).
+
+`fsck.exfat -n`:
+
+```text
+exfatprogs version : 1.2.0
+/dev/loop1: clean. directories 75, files 10
+FSCK_EXIT=0
+```
+
+Mounted tree top levels included `APKs`, `Cannoli/{Art,BIOS,Backup,Cheats,Config,Guides,Logs,Media,Overlays,Roms,Save States,Saves,Shaders,Wallpapers}`, `Manuals`, `CREDITS.md`, and `Manuals/readme.txt`.
+
+Content assertions:
+
+```text
+ROM_TAG_DIRS=51/51 OK
+SETTINGS_JSON={} OK
+```
+
+`Cannoli/Config/settings.json` is exactly `{}` (no trailing newline in the file).
+
+CREDITS attribution:
+
+```text
+=== CREDITS.md (Cannoli/GPL lines) ===
+5:## Cannoli
+7:- Cannoli v1.9.1 (commit 7755e376b6add0bbd25ea19104c368b7a40b979f)
+8:- License: GPL-3.0
+9:- https://github.com/CannoliHQ/cannoli
+```
+
+Every declared demo file exists, with hashes matching the source fixtures:
+
+```text
+22a01279130d6945291c777de1857b9d11ac5964600a58a3182212fcd5e90c41  APKs/Demo.apk
+5015981c4048dd0dbca9b3cba2b450b746def4989f45633f76d17a53c77510ce  Cannoli/Roms/GBA/demo.gba
+12416e963d1fb3be518763940473bb9c2aa3928d612e2e6d22b6c89632ac8c46  Cannoli/BIOS/GBA/gba_bios.bin
+43739c566e26fd7cb88f69d3864ea34740372f5ee99acac169e090beffbce5c6  Cannoli/Art/GBA/demo.png
+43739c566e26fd7cb88f69d3864ea34740372f5ee99acac169e090beffbce5c6  Cannoli/Overlays/GBA/bezel.png
+6695aead667f9351b5b274e9bcc2d9976dbc664bbab5d009aa52f8bb6ee98d83  Cannoli/Shaders/crt-lamp/crt-lamp.glslp
+45cd97b4d373a9c04e8251ccc28549836a6bd97a2464464798bae534822d8304  Cannoli/Shaders/crt-lamp/crt-lamp.glsl
+a1a007616d3b5b4370355ac19695905bb75b18f7a02ba937f0b59031e639d256  Manuals/readme.txt
+DECLARED_FILES=8/8 OK
+INSPECT_RESULT=PASS
+```
+
+Raw log: `/tmp/sbc-f3-final.Zs2zuG/inspect.log`
+Source hashes: `/tmp/sbc-f3-final.Zs2zuG/demo-source.sha256`
+
+### 5. Linux privileged integration suite
+
+**Status: carried forward, NOT run fresh.**
+
+The host is macOS; this environment has no Linux kernel/loop device and `sudo`
+requires an interactive password:
+
+```text
+$ sudo -n true
+sudo: a password is required
+exit 1
+```
+
+The requested `sudo -E env "PATH=$PATH" uv run pytest -m integration -q` was not
+run on Linux, so no fresh Linux integration result is claimed here.
+
+Carried-forward evidence: the prior F3 run approved at `98919d3` with all 3
+integration tests passing. That result remains relevant because the hardening
+range does not modify assembler behavior:
+
+```shell
+git diff 98919d3..13b6751 -- \
+  src/sbc_imager/assembler.py \
+  src/sbc_imager/assembler_steps.py \
+  src/sbc_imager/assembler_verify.py \
+  src/sbc_imager/mbr.py
+# (empty; 0 diff lines)
+```
+
+The range `98919d3..13b6751` changes `Dockerfile`, `docs/*`, `AGENTS.md`,
+`cannoli.py`, `cli.py`, `config.py`, `imaging_write.py`, `planner.py`, and unit
+tests only; `tests/integration/` is unchanged. The independent macOS Docker E2E
+above also exercises the Linux assembler/verifier path on the rebuilt container,
+but it is not a substitute for the privileged Linux test run.
+
+### 6. Image dry-run / enumerator safety
+
+No real card reader was present. macOS `diskutil list` showed only:
+
+```text
+/dev/disk0 (internal, physical)
+/dev/disk3 (synthesized)
+/dev/disk4 (disk image)
+```
+
+Real-environment dry run (no reader):
+
+```shell
+uv run sbc-imager image --image /tmp/sbc-f3-final.Zs2zuG/demo.img --dry-run
+IMAGE_REAL_ENV_EXIT=2
+stderr: Error: no safe removable disks found; connect a USB card reader
+```
+
+The internal disk was not offered.
+
+To exercise the successful dry-run path, used the repository's documented fake
+diskutil fixtures (`tests/fixtures/diskutil/`) through a temporary `diskutil`
+shim on `PATH`, so the real `enumerate_disks`, `render_table`, and CLI dry-run
+code ran without touching hardware:
+
+```shell
+printf '1\n' | PATH="/tmp/sbc-f3-final.Zs2zuG/fakebin:$PATH" \
+  uv run sbc-imager image --image /tmp/sbc-f3-final.Zs2zuG/demo.img --dry-run
+IMAGE_DRYRUN_EXIT=0
+```
+
+stdout:
+
+```text
+┏━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━┓
+┃ Identifier ┃ Label  ┃ Size      ┃ Model         ┃ Protocol ┃ Serial       ┃
+┡━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━┩
+│ disk9      │ SDCARD │ 59.478GiB │ SanDisk Ultra │ USB      │ 0123456789AB │
+└────────────┴────────┴───────────┴───────────────┴──────────┴──────────────┘
+Select a disk [1-1]: Dry run: no data will be written.
+Device: disk9 (/dev/rdisk9)
+Model: SanDisk Ultra
+Disk size: 63864373248 bytes (59.478GiB)
+Image: /tmp/sbc-f3-final.Zs2zuG/demo.img
+Image size: 69206016 bytes (66MiB)
+Image SHA-256: 27168ee64afec1b58ee4ea6b075e78939824e36ffffaf3fe31a6a0b6bb7153fa
+```
+
+Only the external USB removable disk (`disk9`) was offered. The internal disk
+(`disk0`), disk image (`disk4`), boot disk (`disk10`), and built-in SD reader
+(`disk11`) were all filtered out. No write occurred: the dry-run path returns
+before `write_image`, no `sudo`/writer was invoked, the image file stayed at
+mtime `2026-10-19T01:46:11-0400` with the same SHA-256, and no real disk was
+opened.
+
+Supporting unit tests (fakes assert `write_image` is never called on dry-run):
+
+```text
+uv run pytest tests/unit/test_imaging_enum.py tests/unit/test_cli_image.py -q
+................................                                         [100%]
+32 passed in 0.17s
+```
+
+Raw logs: `image-dryrun.stdout.log`, `image-dryrun.stderr.log`,
+`image-dryrun.exit`, `image-real-env.*`, `imaging-unit-tests.log`,
+`diskutil-list.txt`, `fakebin/diskutil`.
+
+## Guardrail check
+
+- No source, test, docs, plan, or git changes; `git status --porcelain` is empty.
+- No real disk was read or written; no destructive command was run.
+- No Docker/Linux result was fabricated. Linux integration is explicitly marked
+  carried forward.
+- Evidence log is the only repository file written.
+
+## Artifact index
+
+Under `/tmp/sbc-f3-final.Zs2zuG`:
+
+```text
+demo.img                    66 MiB assembled image
+demo.img.report.json        build report
+build.stdout.json           --json build output
+build.stderr.log            build progress
+build.exit                  BUILD_EXIT=0
+verify.stdout.log           CLI verify output
+verify.stderr.log           empty
+verify.exit                 VERIFY_EXIT=0
+inspect.log                 sfdisk/fsck/mount/tree assertions
+docker-build.log            fresh --no-cache Dockerfile build
+demo-source.sha256          source fixture hashes
+image-dryrun.*              fake-enumerator dry-run
+image-real-env.*            no-real-reader dry run
+imaging-unit-tests.log      32 passed
+diskutil-list.txt           host disk inventory
+fakebin/diskutil            temporary fixture-backed shim
+```
+
+# END

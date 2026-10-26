@@ -1,0 +1,246 @@
+F2 FINAL-GATE — Code Quality Re-Audit
+Plan: /Users/bball/projects/sbc-android-card-imager/.omo/plans/sbc-android-card-imager.md
+Worktree audited: /Users/bball/projects/sbc-android-card-imager-wt/sbc-android-card-imager-wave-3
+Branch: feat/sbc-imager-wave-3
+HEAD: 13b6751946c690aa55a5e51faa51965be401d53d
+Base: main @ 0fb6379f891bc0c1dd47f9998bb3173cc41a32eb
+Reviewer mode: read-only (no source/test/doc/plan/git edits; evidence report only)
+Date: 2026-10-19
+Prior F2 evidence: /Users/bball/projects/sbc-android-card-imager-wt/sbc-android-card-imager-wave-3/.omo/evidence/F2-sbc-android-card-imager.txt (left untouched)
+
+================================================================================
+VERDICT: APPROVE
+================================================================================
+
+No blocking findings. The two prior blockers (F2-1 declared-root symlink bypass,
+F2-2 trailing whitespace in the generated tag doc) are closed and regression-tested.
+The prior non-blocking notes that were promoted into the hardening commits
+(SIZE_OK, write_image DiskInfo recheck, Docker apt pins, branch-ref warnings) are
+also closed. All required commands pass independently at 13b6751.
+
+Residual non-blocking observations are listed in section 5; none violate the
+stated closure criteria and none require a source change before merge.
+
+================================================================================
+1. REQUIRED COMMANDS (independently executed)
+================================================================================
+
+$ task lint
+  ruff check .                 All checks passed!
+  ruff format --check .        74 files already formatted
+  pyright                      0 errors, 0 warnings, 0 informations
+  exit 0
+
+$ task test
+  uv run pytest -m "not integration" -q
+  ....................
+  ....................
+  518 passed, 1 skipped, 3 deselected in 5.16s
+  exit 0
+  skip: tests/unit/test_fs.py:156 "filesystem does not report sparse holes"
+        (macOS APFS does not report holes; environment-dependent, pre-existing)
+
+$ uv run pytest --cov=sbc_imager --cov-report=term-missing --cov-fail-under=85
+  518 passed, 4 skipped in 5.80s
+  TOTAL 2952 statements, 207 missed, 93%
+  "Required test coverage of 85% reached. Total coverage: 92.99%"
+  exit 0
+  skips: 3x Linux-only loop/mount/exfat integration, 1x sparse-hole probe.
+  Lowest modules remain assembler.py 87%, verify.py 87%, build.py 88%, fs.py 88%.
+  Integration-only lines are excluded by environment, not by lowering the gate.
+
+$ uv run pre-commit run --all-files
+  ruff check.............................................................Passed
+  ruff format............................................................Passed
+  pyright................................................................Passed
+  pytest-unit............................................................Passed
+  exit 0
+
+$ git diff --check main..HEAD
+  (no output)
+  exit 0
+
+$ docker build --no-cache -t sbc-imager-f2-audit-nocache:13b6751 .
+  [1/6] FROM python:3.12-slim-bookworm@sha256:34386ef0...
+  [2/6] RUN apt-get update && apt-get install -y --no-install-recommends
+        e2fsprogs=1.47.0-2+b2 exfatprogs=1.2.0-1+deb12u1
+        util-linux=2.38.1-5+deb12u3 fdisk=2.38.1-5+deb12u3
+  [3/6] WORKDIR /app
+  [4/6] COPY pyproject.toml uv.lock README.md ./
+  [5/6] COPY src ./src
+  [6/6] RUN pip install --no-cache-dir .
+  Successfully installed ... sbc-android-card-imager-0.1.0
+  naming to docker.io/library/sbc-imager-f2-audit-nocache:13b6751 done
+  exit 0
+  The no-cache rebuild forced the apt layer to execute; all four exact bookworm
+  pins resolved and installed. A warm-cache build also succeeded (exit 0).
+
+Repository state after review:
+$ git status --short --branch
+  ## feat/sbc-imager-wave-3          (clean, no tracked changes)
+$ git -C /Users/bball/projects/sbc-android-card-imager status --short --branch
+  ## main...origin/main             (clean, untouched)
+
+================================================================================
+2. PRIOR FINDINGS — INDEPENDENT VERIFICATION
+================================================================================
+
+F2-1 (was BLOCKING) — declared local root symlink bypass: CLOSED
+  src/sbc_imager/config.py:192-198 now checks path.is_symlink() BEFORE
+  path.resolve() and raises ConfigError "symlink: <where> is a symlink: <path>".
+  Parent-directory symlinks still resolve because is_symlink() stats only the
+  final component before resolution.
+  Evidence:
+    tests/unit/test_config.py:141-156 parametrizes file and directory roots and
+      asserts ConfigError "symlink: rom[0]".
+    tests/unit/test_config.py:159-175 proves a symlinked parent directory
+      ("link/roms/demo.gba") is allowed and resolves to the real path.
+    tests/unit/test_cli_plan.py:127-141 invokes `plan` and asserts exit_code == 2
+      with "symlink: rom[0]" on stderr.
+  All three tests pass in the 518-test run above.
+
+F2-2 (was BLOCKING) — generated-doc trailing whitespace: CLOSED
+  src/sbc_imager/cannoli.py render_markdown() now emits the pinned version and
+  commit as separate paragraphs instead of two-space Markdown hard breaks.
+  Evidence:
+    grep -nE '[[:space:]]+$' docs/cannoli-platform-tags.md  -> no matches (exit 1)
+    `python -m sbc_imager.cannoli --markdown` output         -> no matches (exit 1)
+    cmp rendered output vs docs/cannoli-platform-tags.md     -> identical (exit 0)
+    test_docs.py:test_cannoli_tag_doc_when_compared_to_registry_is_current passes.
+    `git diff --check main..HEAD` exit 0.
+
+N1 (was non-blocking) — cannoli.py 252 pure LOC unmarked: CLOSED
+  src/sbc_imager/cannoli.py:13-15 carries:
+    "# allow: SIZE_OK - this module is the pinned Cannoli registry data table
+     # (platform tags, BIOS requirements, path contract) plus a small renderer;
+     # splitting the table would make the pinned contract harder to audit."
+  AGENTS.md:109 documents that the marker is the intentional exemption. The
+  marker describes why the pure-LOC guard is waived (pinned data table +
+  renderer) rather than merely asserting an exception.
+
+N2 (was non-blocking) — write_image lacked DiskInfo recheck: CLOSED (stated scope)
+  src/sbc_imager/imaging_write.py:69-78 rechecks `not disk.whole` and
+  `disk.internal` before the root check, image stat, unmount, open, or copy.
+  tests/unit/test_imaging_write.py:93-110 parametrizes
+  (internal=True, whole=True) -> "internal" and (internal=False, whole=False)
+  -> "whole"; asserts SafetyError, runner.calls == [], and the target file is
+  untouched. Passes. (See residual note R1.)
+
+N4 (was non-blocking) — Dockerfile apt packages unpinned: CLOSED
+  Dockerfile pins e2fsprogs=1.47.0-2+b2, exfatprogs=1.2.0-1+deb12u1,
+  util-linux=2.38.1-5+deb12u3, fdisk=2.38.1-5+deb12u3 on a digest-pinned
+  python:3.12-slim-bookworm base. No-cache build succeeded (section 1).
+
+Branch-ref warnings — shared Warning schema in plan and fetch: CLOSED
+  src/sbc_imager/planner.py:161-177 lifts resolver metadata warnings into the
+  shared `validation_common.Warning` schema (code/message/entry_index).
+  build_plan() extends validation warnings with source_warnings(), so `plan`
+  prints and `plan --json` includes them; cli.py fetch attaches the same
+  Warning (via dataclasses.asdict) to the affected source row for `fetch --json`
+  and prints it in table mode.
+  Evidence (all pass): tests/unit/test_cli_plan.py:188-260 covers
+    plan table warning, plan JSON warning, fetch table warning, fetch JSON
+    warning, and no warning for a pinned commit.
+
+No type suppression / no skipped or deleted tests / no new dead code / no
+regression: VERIFIED with one scoped exception noted in R2.
+  - src/ has no `# type: ignore`, `# pyright: ignore`, `# noqa`, `cast(...)`,
+    bare `Any`, or `NotImplementedError`.
+  - Hardening diff 98919d3..13b6751 adds no suppression/skip/deleted test.
+  - `git diff --name-status main..HEAD` shows no deleted or renamed files.
+  - No TODO/FIXME/XXX in src or tests.
+  - Suite count increased 506 -> 518 passed, with 0 regressions.
+
+================================================================================
+3. STATIC REVIEW OF `git diff main..HEAD`
+================================================================================
+
+shell=True:
+  No occurrence in src. External execution stays behind runner.SubprocessRunner
+  with argv lists. The only "shell=True" string is the negative assertion in
+  tests/unit/test_imaging_write.py:336.
+
+Swallowed exceptions:
+  No bare `except:` and no `except Exception: pass`. The `except BaseException`
+  sites (build.py:192, assembler.py:65/134, sources.py temp cleanup,
+  sources_git.py temp cleanup) all clean up and re-raise, preserving the original
+  failure. `contextlib.suppress` is limited to best-effort termination/unmount
+  after a primary error. No silent failure paths found.
+
+Hard-coded host paths:
+  None in src. `/proc/filesystems` and `/tmp/assemble` are Linux/container
+  contracts and injectable/test-seamed. Tests use tmp_path. README sample paths
+  (`/Users/me/...`) are documentation examples, not runtime constants.
+
+Secrets:
+  No keys/tokens/passwords committed. Test-only `user:secret@example.com`
+  fixtures assert redaction. `runner.redact_url()` is exercised by tests.
+
+Dead code / stubs:
+  No `NotImplementedError` in src; the only occurrence is the platform skip guard
+  in tests/unit/test_validation.py:44. No TODO/FIXME/XXX and no empty `pass`
+  bodies in src. New helpers `source_warnings()`, `_warning_text()`, and the
+  config symlink branch are all reachable and covered.
+
+Unsafe/destructive review (unchanged):
+  Device write still targets only `/dev/rdisk<N>`, rejects `/dev/disk*`, requires
+  root (except dry-run), image fit, and successful unmount; the new whole/internal
+  recheck runs before any destructive work. No dd, no shell, no format/partition,
+  no auto-sudo, no retry.
+
+================================================================================
+4. HARDENING COMMITS REVIEWED
+================================================================================
+
+  f9341ed fix(container): pin assembler apt packages
+  efae552 fix(sources): surface branch-ref warnings
+  520c5a2 fix(config): reject symlinked local roots
+  fb580cd docs: regenerate cannoli tags without trailing whitespace
+  c6ba1d4 chore(cannoli): mark platform table SIZE_OK
+  14c49da fix(imaging): recheck target disk classification
+  13b6751 docs(agents): record final hardening invariants
+
+  Each commit is focused and conventional; 13b6751 only updates AGENTS.md with
+  the resulting invariants. No unrelated changes or scope creep found.
+
+================================================================================
+5. RESIDUAL NON-BLOCKING OBSERVATIONS
+================================================================================
+
+R1. write_image() rechecks `whole` and `internal`, but does not recheck
+    `removable`/`ejectable` (the remainder of prior N2's suggested assertion).
+    The CLI can only supply enumerate_disks() output, which already enforces
+    those flags, so there is no user-facing bypass. Not a blocker under the
+    stated closure criterion (whole + not internal); consider adding the two
+    flags if write_image() gains other library callers.
+
+R2. One pre-existing test-only type suppression remains at
+    tests/unit/test_sources_local.py:143:
+      resolved.kind = "directory"  # type: ignore[misc]
+    It intentionally mutates a frozen dataclass to assert FrozenInstanceError.
+    It predates the hardening commits (added in 5a8b8b0), is absent from src/,
+    and was not introduced by this rework. Not a blocker.
+
+R3. Prior N3 (source resolution implemented in cli and verify) and N5 (long
+    parameter lists) remain as previously noted, non-blocking refactor ideas.
+    Neither was part of the requested hardening scope.
+
+================================================================================
+6. VERDICT / MERGE RECOMMENDATION
+================================================================================
+
+APPROVE.
+
+Exact blockers: none.
+
+All required gates pass at HEAD 13b6751:
+  task lint (exit 0), task test (518 passed, exit 0),
+  coverage gate (92.99% >= 85%, exit 0),
+  pre-commit --all-files (4/4 passed, exit 0),
+  git diff --check main..HEAD (empty, exit 0),
+  no-cache Docker build (exit 0).
+The two prior F2 blockers and the promoted non-blocking findings are closed with
+regression tests. Worktree and main are clean; no review artifacts were committed.
+
+Evidence path:
+  /Users/bball/projects/sbc-android-card-imager/.omo/evidence/F2-final-sbc-android-card-imager.txt
