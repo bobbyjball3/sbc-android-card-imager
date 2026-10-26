@@ -19,7 +19,7 @@ jobs:
         with:
           version: 3.x
       - name: Install shellcheck and unzip
-        run: sudo apt-get update && sudo apt-get install -y shellcheck unzip
+        run: sudo apt-get update && sudo apt-get install -y shellcheck unzip exfat-fuse exfat-utils
       - name: Sync dependencies
         run: uv sync --frozen --all-groups
       - name: Lint
