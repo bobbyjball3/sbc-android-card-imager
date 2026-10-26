@@ -53,9 +53,9 @@ pinned Cannoli platform table.
 
 | Task | Requirements |
 | --- | --- |
-| Build | [uv](https://docs.astral.sh/uv/) (Python 3.12+), `unzip`, and Docker with privileged container support. Ansible runs through `uv run`; the `ansible-core` pin lives in `pyproject.toml`. `unzip` is needed because `ansible.builtin.unarchive` extracts the pinned NextUI archive and paks. No local `sfdisk`/`mkfs.exfat` needed - macOS only needs Docker + uv + Task + unzip. |
+| Build | [uv](https://docs.astral.sh/uv/) (Python 3.12+), `unzip`, and Docker with privileged container support. Ansible runs through `uv run`; the `ansible-core` pin lives in `pyproject.toml`. `unzip` is needed because `ansible.builtin.unarchive` extracts the pinned NextUI archive and paks. No local `sfdisk`/`mkfs.exfat` needed, but the host kernel must support exFAT (the container mounts it): on Linux use `sudo modprobe exfat` and install `linux-modules-extra-$(uname -r)` if the module is missing; Docker Desktop on macOS already provides it. |
 | Write to card | `dd` (macOS, Linux, or Git Bash on Windows) or [balenaEtcher](https://etcher.balena.io/) on any OS. The tool itself never touches a device. |
-| Development | uv, Task, `unzip`, and Docker (privileged) for the shell test suite. |
+| Development | uv, Task, `unzip`, Docker (privileged), and host exFAT kernel support for the shell test suite. On Linux, `sudo modprobe exfat` (install `linux-modules-extra-$(uname -r)` if missing). |
 
 The builder image is `sbc-imager-builder:local`, built from the repository-root
 `Dockerfile` (debian:bookworm-slim plus exfatprogs, util-linux, fdisk, rsync,

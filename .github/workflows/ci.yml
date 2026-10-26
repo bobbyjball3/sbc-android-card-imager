@@ -18,8 +18,12 @@ jobs:
       - uses: arduino/setup-task@v2
         with:
           version: 3.x
-      - name: Install shellcheck and unzip
-        run: sudo apt-get update && sudo apt-get install -y shellcheck unzip exfat-fuse exfatprogs
+      - name: Install test dependencies and enable exFAT
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck unzip "linux-modules-extra-$(uname -r)"
+          sudo modprobe exfat
+          grep -qw exfat /proc/filesystems
       - name: Sync dependencies
         run: uv sync --frozen --all-groups
       - name: Lint

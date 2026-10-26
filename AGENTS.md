@@ -194,8 +194,11 @@ Run `task <name>` from the repository root. Target names are `setup`, `lint`,
 - `ci` - the local gate (lint + validate + test)
 
 The raw ansible-playbook commands are the verified interface; keep any Taskfile
-wrapper a thin alias for them. CI (`.github/workflows/ci.yml`) installs `shellcheck` and
-`unzip` before invoking the same Task targets, so local and CI runs match.
+wrapper a thin alias for them. CI (`.github/workflows/ci.yml`) installs `shellcheck`,
+`unzip`, and `linux-modules-extra-$(uname -r)`, then loads the exFAT kernel module
+(`sudo modprobe exfat`) before invoking the same Task targets. The module is required
+because the builder mounts exFAT inside a privileged container against the host kernel;
+host `exfatprogs`/`exfat-fuse` userspace packages do not provide it.
 
 ### Testing strategy
 Write tests first. The suite is shell scripts in `tests/`:
@@ -215,6 +218,11 @@ Write tests first. The suite is shell scripts in `tests/`:
   placeholder-byte fixture: exact image size, MBR start=2048/type=7, `fsck.exfat -n`
   clean, mounted content assertions, loop-device leak check, and invalid-input failure
   cases. All mounts run inside disposable privileged containers.
+
+The NextUI and smoke tests mount exFAT inside the container, so the host kernel must
+provide exFAT support. On Linux load it with `sudo modprobe exfat`; if the module is
+missing, install `linux-modules-extra-$(uname -r)`. CI does this before `task test`;
+Docker Desktop on macOS already provides exFAT.
 Evidence is appended under `.omo/evidence/` (gitignored). No test writes a block device;
 fixtures use tiny non-copyrighted placeholder bytes - never real ROMs, BIOS files, or
 other copyrighted assets.
