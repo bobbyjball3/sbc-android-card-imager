@@ -1,0 +1,38 @@
+---
+# Cannoli profile payload staging.
+#
+# Data contract comes from ansible/vars/cannoli.yml, loaded by build.yml with
+# include_vars for payload_profile == 'cannoli'. Paths are relative to the card
+# root: 17 base directories, 51 Cannoli/Roms/<TAG> directories, the Obtainium
+# directory for device files, and the 3-byte Cannoli/Config/settings.json
+# install marker.
+
+- name: Create Cannoli base directories
+  ansible.builtin.file:
+    path: "{{ payload_dir }}/{{ item }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ cannoli_base_dirs }}"
+  tags: payload
+
+- name: Create Cannoli platform ROM directories
+  ansible.builtin.file:
+    path: "{{ payload_dir }}/Cannoli/Roms/{{ item }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ cannoli_tags }}"
+  tags: payload
+
+- name: Create Obtainium directory for local file destinations
+  ansible.builtin.file:
+    path: "{{ payload_dir }}/Obtainium"
+    state: directory
+    mode: "0755"
+  tags: payload
+
+- name: Write Cannoli settings marker file
+  ansible.builtin.copy:
+    content: "{}\n"
+    dest: "{{ payload_dir }}/{{ cannoli_settings_marker }}"
+    mode: "0644"
+  tags: payload

@@ -2,7 +2,8 @@ version: '3'
 
 vars:
   DEVICE: '{{.DEVICE | default "rg477m"}}'
-  SIZE_MIB: '{{.SIZE_MIB | default "128"}}'
+  SIZE_MIB: '{{.SIZE_MIB | default ""}}'
+  IMAGE_DEVICE: '{{.IMAGE_DEVICE | default ""}}'
   # Absolute, derived from the Taskfile's own location, so staging and the
   # container mount resolve the same directory no matter where task is run.
   # The playbook's file/copy actions resolve relative paths against the
@@ -34,6 +35,7 @@ tasks:
     desc: Syntax-check the Ansible build playbook
     cmds:
       - uv run ansible-playbook ansible/build.yml --syntax-check -e device=rg477m -e image_device=
+      - uv run ansible-playbook ansible/build.yml --syntax-check -e device=trimui-brick -e image_size_mib=1024
 
   container:
     desc: Build the builder container image
@@ -48,8 +50,7 @@ tasks:
       - >-
         uv run ansible-playbook ansible/build.yml
         -e device={{.DEVICE}}
-        -e image_device=
-        -e image_size_mib={{.SIZE_MIB}}
+        {{if .SIZE_MIB}}-e image_size_mib={{.SIZE_MIB}}{{end}} {{if .IMAGE_DEVICE}}-e image_device={{.IMAGE_DEVICE}}{{end}}
         -e payload_dir={{.PAYLOAD_DIR}}
         -e dist_dir={{.DIST_DIR}}
         -e image_output={{.DIST_DIR}}/{{.DEVICE}}.img
@@ -58,6 +59,7 @@ tasks:
     desc: Run the payload and image smoke tests
     cmds:
       - tests/ansible-payload.sh
+      - tests/ansible-payload-nextui.sh
       - tests/smoke-image.sh
 
   ci:

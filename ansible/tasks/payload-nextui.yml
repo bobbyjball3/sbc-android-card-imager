@@ -1,0 +1,40 @@
+---
+# NextUI profile payload staging.
+#
+# Data contract comes from ansible/vars/nextui.yml, loaded by build.yml with
+# include_vars for payload_profile == 'nextui'. The pinned NextUI release
+# supplies the card root; this task only creates the base directories and the
+# platform directory that receives the Grout pak.
+
+- name: Create NextUI base directories
+  ansible.builtin.file:
+    path: "{{ payload_dir }}/{{ item }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ nextui_base_dirs }}"
+  tags: payload
+
+- name: Create NextUI platform directory
+  ansible.builtin.file:
+    path: "{{ payload_dir }}/Tools/{{ nextui_platform }}"
+    state: directory
+    mode: "0755"
+  tags: payload
+
+- name: Create NextUI cheats directory omitted by the pinned archive
+  ansible.builtin.file:
+    path: "{{ payload_dir }}/Cheats"
+    state: directory
+    mode: "0755"
+  tags: payload
+
+- name: Require a pinned archive for the NextUI profile
+  ansible.builtin.assert:
+    that:
+      - remote_archives | length > 0
+    fail_msg: >-
+      payload_profile 'nextui' requires at least one pinned remote_archives
+      entry, but remote_archives is empty. Set remote_archives in the device
+      vars file or with -e '{"remote_archives": [...]}'.
+    quiet: true
+  tags: payload

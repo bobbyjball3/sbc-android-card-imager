@@ -1,7 +1,7 @@
 [project]
 name = "sbc-android-card-imager"
 version = "0.1.0"
-description = "Build and flash Cannoli-ready SD card images for Android SBC devices."
+description = "Build ready-to-flash SD card images for SBC and handheld devices."
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "GPL-3.0-or-later" }

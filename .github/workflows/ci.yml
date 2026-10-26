@@ -18,8 +18,8 @@ jobs:
       - uses: arduino/setup-task@v2
         with:
           version: 3.x
-      - name: Install shellcheck
-        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Install shellcheck and unzip
+        run: sudo apt-get update && sudo apt-get install -y shellcheck unzip
       - name: Sync dependencies
         run: uv sync --frozen --all-groups
       - name: Lint
