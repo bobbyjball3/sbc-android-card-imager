@@ -35,6 +35,7 @@ tasks:
     desc: Syntax-check the Ansible build playbook
     cmds:
       - uv run ansible-playbook ansible/build.yml --syntax-check -e device=rg477m -e image_device=
+      - uv run ansible-playbook ansible/build.yml --syntax-check -e device=rp-nova -e image_device=
       - uv run ansible-playbook ansible/build.yml --syntax-check -e device=trimui-brick -e image_size_mib=1024
 
   container:
