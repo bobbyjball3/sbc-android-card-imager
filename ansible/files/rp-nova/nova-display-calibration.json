@@ -1,0 +1,12 @@
+{
+  "apps": [
+    {
+      "id": "local.nova.diagnostic",
+      "url": "https://github.com/pippopapera/nova-display-calibration",
+      "author": "pippopapera",
+      "name": "Nova Display Calibration",
+      "additionalSettings": "{\"includePrereleases\":false,\"fallbackToOlderReleases\":true,\"verifyLatestTag\":false,\"sortMethodChoice\":\"date\",\"autoApkFilterByArch\":true}"
+    }
+  ],
+  "settings": null
+}

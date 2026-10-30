@@ -95,5 +95,9 @@ remote_archives:
 local_files:
   - src: ansible/files/rp-nova/tailscale.json
     dest: Obtainium/tailscale.json
+  - src: ansible/files/rp-nova/nova-display-calibration.json
+    dest: Obtainium/nova-display-calibration.json
+  - src: ansible/files/rp-nova/o2p-tweaks.json
+    dest: Obtainium/o2p-tweaks.json
 
 local_dirs: []

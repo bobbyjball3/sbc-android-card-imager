@@ -1,0 +1,12 @@
+{
+  "apps": [
+    {
+      "id": "com.feralai.o2ptweaks",
+      "url": "https://github.com/FeralAI/o2ptweaks.app",
+      "author": "FeralAI",
+      "name": "O2P Tweaks",
+      "additionalSettings": "{\"includePrereleases\":false,\"fallbackToOlderReleases\":true,\"verifyLatestTag\":false,\"sortMethodChoice\":\"date\",\"autoApkFilterByArch\":true}"
+    }
+  ],
+  "settings": null
+}
