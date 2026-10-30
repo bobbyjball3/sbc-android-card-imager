@@ -9,7 +9,9 @@
 # + 51 declared cannoli_tags under Cannoli/Roms
 # +  1 implicit Cannoli/Media (parent of the two declared Media/* dirs)
 # +  1 required Obtainium dir (destination of the local Tailscale import)
-# = 70 directories under the payload root, excluding the root itself.
+# + 29 RGC overlay dirs (GB, GBC, GBA + the 26 CRT home-console tags)
+# +  1 RGC shader source dir (Cannoli/Shaders/shaders)
+# = 100 directories under the payload root, excluding the root itself.
 #
 # The plan text mentions 68; that is wrong because 17 + 51 already excludes
 # the root (the Cannoli root is one of the 17 base dirs).
@@ -22,7 +24,7 @@ cd "$REPO_ROOT"
 VAR_FILE="ansible/vars/cannoli.yml"
 EXPECTED_BASE=17
 EXPECTED_TAGS=51
-EXPECTED_DIRS=70
+EXPECTED_DIRS=100
 
 TMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/ansible-payload-qa.XXXXXX")
 PAYLOAD_DIR="$TMP_DIR/payload"
@@ -104,13 +106,75 @@ assert_payload_tree() {
     echo "PASS roms dirs: $EXPECTED_TAGS/$EXPECTED_TAGS present"
   fi
 
-  # Total directories under the root: 17 + 51 + implicit Media + Obtainium.
+  # Total directories under the root: 17 + 51 + implicit Media + Obtainium
+  # + 29 RGC overlay dirs + 1 RGC shader source dir.
   dir_count=$(find "$root" -mindepth 1 -type d | wc -l | tr -d ' ')
   if [[ "$dir_count" -ne "$EXPECTED_DIRS" ]]; then
     echo "FAIL directory count: expected $EXPECTED_DIRS got $dir_count" >&2
     rc=1
   else
-    echo "PASS directory count: $dir_count (17 base + 51 roms + Cannoli/Media + Obtainium)"
+    echo "PASS directory count: $dir_count (70 base contract + 29 overlays + shaders)"
+  fi
+
+  # RGC overlays: 29 per-platform dirs, all PNGs (no .cfg), 32 PNG files.
+  local r
+  local overlay_dirs overlay_pngs
+  overlay_dirs=$(find "$root/Cannoli/Overlays" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
+  overlay_pngs=$(find "$root/Cannoli/Overlays" -type f -name '*.png' | wc -l | tr -d ' ')
+  if [[ "$overlay_dirs" -ne 29 || "$overlay_pngs" -ne 32 ]]; then
+    echo "FAIL RGC overlays: expected 29 dirs / 32 PNGs, got $overlay_dirs / $overlay_pngs" >&2
+    rc=1
+  else
+    echo "PASS RGC overlays: 29 dirs, 32 PNGs"
+  fi
+  if find "$root/Cannoli/Overlays" -type f ! -name '*.png' | grep -q .; then
+    echo "FAIL RGC overlays: found non-PNG overlay files" >&2
+    rc=1
+  fi
+
+  # Handheld overlay mapping (GB/GBC/GBA).
+  for r in \
+    "GB:Jeltron_GB-DMG.png" \
+    "GB:Perfect_GB-DMG.png" \
+    "GBC:Jeltron_GB-Color.png" \
+    "GBC:Perfect_GBC.png" \
+    "GBA:Jeltron_GBA.png" \
+    "GBA:Perfect_GBA.png"; do
+    tag=${r%%:*}
+    local file=${r#*:}
+    if [[ ! -f "$root/Cannoli/Overlays/$tag/$file" ]]; then
+      echo "FAIL RGC overlay mapping missing: $tag/$file" >&2
+      rc=1
+    fi
+  done
+
+  # CRT overlay on the 26 home-console tags.
+  local crt_tags="NES FDS SNES N64 SMS MD SG1000 32X SEGACD SATURN DC PS PS2 GC WII PCE PCFX SUPERGRAFX NEOGEO ATARI2600 ATARI5200 ATARI7800 COLECOVISION INTELLIVISION VECTREX JAGUAR"
+  for tag in $crt_tags; do
+    if [[ ! -f "$root/Cannoli/Overlays/$tag/Jeltron_CRT.png" ]]; then
+      echo "FAIL RGC CRT overlay missing: $tag/Jeltron_CRT.png" >&2
+      rc=1
+    fi
+  done
+
+  # RGC GLSL shaders: 3 presets + 3 referenced sources; no Slang.
+  for r in \
+    "crt-1tap.glslp" "sharp-shimmerless.glslp" "zfast_crt_geo_svideo.glslp" \
+    "shaders/crt-1tap.glsl" "shaders/sharp-shimmerless.glsl" "shaders/zfast_crt_geo_svideo.glsl"; do
+    if [[ ! -f "$root/Cannoli/Shaders/$r" ]]; then
+      echo "FAIL RGC shader missing: Cannoli/Shaders/$r" >&2
+      rc=1
+    fi
+  done
+  if find "$root/Cannoli/Shaders" -type f \( -name '*.slang' -o -name '*.slangp' \) | grep -q .; then
+    echo "FAIL RGC shaders: Slang files present (Cannoli purges them)" >&2
+    rc=1
+  fi
+
+  # The temporary RGC source tree must not reach the payload.
+  if [[ -e "$root/.rgc-src" ]]; then
+    echo "FAIL RGC source tree present: .rgc-src" >&2
+    rc=1
   fi
 
   # settings.json must be exactly "{}\n" (3 bytes).
@@ -251,4 +315,4 @@ echo "PASS path-resolution: relative default stages at $REL_TREE ($rel_dirs dirs
 rm -rf "${REL_TREE:?}" "${PLAYBOOK_DIR:?}/dist" "${REPO_ROOT:?}/$REL_PAYLOAD"
 
 echo "== Result =="
-echo "PASS: payload contract holds (70 directories, 3 files, no CREDITS.md)"
+echo "PASS: payload contract holds (100 directories, overlays+shaders, 3 files, no CREDITS.md)"
