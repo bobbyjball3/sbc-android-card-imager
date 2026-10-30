@@ -5,11 +5,12 @@ handheld device setups. Use or fork as you will - just keep it open source. I'll
 probably make this somewhat flexible, but my real target is myself, so it may
 not do what you want, how you want it.
 
-The tool turns a device vars file into a ready-to-flash card image. Ansible
-stages the payload tree for the selected profile, a pinned Linux container
-assembles an uncompressed sparse MBR + exFAT `.img`, and then it stops. Writing
-that image to an SD card is deliberately **your** step, with `dd` or
-balenaEtcher - the tool no longer writes block devices at all.
+The tool turns a device vars file into a card. Ansible stages the payload tree
+for the selected profile. For NextUI (and for archival) a pinned Linux container
+assembles an uncompressed sparse MBR + exFAT `.img`; for Cannoli there is also a
+fast `deploy` path that rsyncs the staged tree onto an already-mounted card.
+Neither path writes a raw block device - formatting the card and writing an
+image to it are deliberately **your** step, with `dd` or balenaEtcher.
 
 Two payload profiles ship today: **Cannoli** for Android handhelds/SBCs such as
 the Retroid Pocket Nova, and **NextUI** for the TrimUI Brick.
@@ -38,6 +39,9 @@ the Retroid Pocket Nova, and **NextUI** for the TrimUI Brick.
 - Produces an image **file** only. The builder refuses `/dev/*` output paths
   and non-`.img` outputs. There is no flashing mode: you write the image with
   `dd` or balenaEtcher (or Raspberry Pi Imager in "use custom image" mode).
+- **Fast deploy (Cannoli):** `task deploy` stages the same tree and rsyncs it
+  onto an already-mounted exFAT card - no image, no `dd`, and an overlay-only
+  update that never deletes user ROMs, saves, or BIOS files.
 
 ## Supported devices
 
@@ -143,12 +147,12 @@ uv run ansible-playbook ansible/build.yml \
 
 ## Write the image
 
-The tool **never writes to a block device** - on purpose. It produces
+The image path **never writes to a raw block device** - on purpose. It produces
 `dist/<device>.img` (for example `dist/rp-nova.img` or
 `dist/trimui-brick.img`) and stops. Writing that image to your SD card is a
 separate, manual step you perform with `dd` or balenaEtcher. There is no
-flashing mode, no interactive card selector, no `ERASE` prompt, and no other
-supported write path.
+flashing mode, no interactive card selector, and no `ERASE` prompt. (Cannoli
+devices also have a faster copy path - see "Deploy to the SD card" below.)
 
 First double-check the device node - this is destructive and targets the whole
 disk:
@@ -167,7 +171,33 @@ node (e.g. `of=/dev/sdX` - make sure it is the card).
 If you prefer a GUI, use [balenaEtcher](https://etcher.balena.io/) on any OS:
 select `dist/<device>.img`, select the card, and flash. Raspberry Pi Imager
 also works in "use custom image" mode. All of these paths write the image
-produced by this tool; the tool itself has no device-writing code path.
+file produced by this tool; none of them touch a raw device for you.
+
+## Deploy to the SD card (Cannoli, fast)
+
+For Cannoli/Android cards you do not need an image at all. Format the card as
+exFAT once, then `deploy` copies the staged tree straight onto the mounted
+volume - no container, no sparse image, and none of the full-card bytes that
+`dd` writes. It doubles as the update path.
+
+```shell
+# 1. Format the card (manual and destructive). Use Disk Utility, or:
+diskutil eraseDisk exFAT NOVA /dev/diskN    # N = the card's whole disk
+
+# 2. Stage and copy onto the mounted card. Defaults to /Volumes/<image_label>,
+#    so /Volumes/NOVA for rp-nova; override with DEPLOY_TARGET=/Volumes/OTHER.
+task deploy DEVICE=rp-nova
+```
+
+`task deploy` stages the payload (the same tree the image contains, including
+the Cannoli shaders and overlays) and runs `rsync -rlt` onto the card. It is an
+**overlay**: files are copied or overwritten but never deleted, so ROMs, saves,
+BIOS files, and art already on the card are untouched. Re-run it to update.
+
+`deploy` is Cannoli-only and never formats, erases, or writes a raw block
+device - it only writes files to an already-mounted volume. The image path
+above is still available for archival or Etcher redistribution, and is still
+required for NextUI.
 
 ## The Retroid Pocket Nova happy path
 
@@ -329,10 +359,12 @@ Cannoli, `APKs`, `Obtainium`, or a Cannoli settings marker.
   its RomM server URL and token entered on-device.
 - **Image assembly always runs in the pinned Linux container.** macOS never
   runs `sfdisk` or `mkfs.exfat` locally; the container does all of it.
-- **No block-device writes, ever.** The builder refuses any output under
-  `/dev/` and any non-`.img` output. The only supported way to get the image
-  onto a card is `dd` or balenaEtcher, run by you. Double-check the device
-  node before writing - flashing overwrites every byte on the selected card.
+- **No raw block-device writes.** The image builder refuses any output under
+  `/dev/` and any non-`.img` output; the only way to get an image onto a card is
+  `dd` or balenaEtcher, run by you. The Cannoli `deploy` path only copies files
+  to an already-mounted exFAT volume - it never formats or writes `/dev/*`.
+  Formatting is a manual step; double-check the device node before erasing or
+  flashing, which overwrites every byte on the selected card.
 - **Read-only disk sizing.** `image_device` only reads `diskutil info` geometry
   and asserts the `WholeDisk` flag. It never unmounts, writes, or formats.
 - **No verification pass or generated credits file.** The old per-file
@@ -354,6 +386,9 @@ Shell tests live in `tests/`:
 - `tests/ansible-payload.sh` - runs the Cannoli payload playbook in a temp dir
   and asserts the full staged-tree contract (100 directories including the RGC
   overlay/shaders, 5 payload files, the 3-byte settings marker, no `CREDITS.md`).
+- `tests/deploy-overlay.sh` - deploys into a temp "card" and asserts the payload
+  (shaders and overlays included) lands while pre-existing user ROMs, saves, and
+  BIOS survive an overlay update; also injects a missing-target failure.
 - `tests/ansible-payload-nextui.sh` - stages the NextUI profile with a temp
   payload/cache/dist, asserts the 15-entry card root, zipped `MinUI.zip`,
   `trimui/`, and executable Grout pak, then builds and mounts a real exFAT image.

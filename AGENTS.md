@@ -52,18 +52,27 @@ Ansible stages a device payload tree selected by `payload_profile` (`cannoli` or
 and a privileged Linux container turns that tree into a sparse MBR + exFAT SD card image
 file. The pipeline is: device vars + profile -> `ansible/build.yml` staging (profile task
 file, pinned remote assets/archives, local files) -> containerized MBR+exFAT sparse image
--> `fsck.exfat -n` -> atomic publish of a `.img` file. Two payload profiles ship today:
+-> `fsck.exfat -n` -> atomic publish of a `.img` file. Cannoli devices also have a
+container-free `deploy` path that rsyncs the staged tree onto an already-mounted card.
+Two payload profiles ship today:
 `cannoli` (17 base dirs + 51 Roms tags + settings marker + Obtainium) and `nextui`
 (pinned NextUI `-all` archive + pinned Grout pak on `tg5040`). The tool is payload-only:
 it does not download ROMs, install APKs, or provide zero-touch first boot.
 
 ### The no-block-device rule (deliberate design change)
-The tool produces an image **file** only. All block-device writes were ripped out: there
-is no macOS raw-device imager, no disk enumeration for writing, no `ERASE` prompt, and no
-`--dry-run` flashing path. `container/build-image.sh` refuses any output path under
-`/dev/` and any non-`.img` output. The ONLY supported write path is the user running `dd`
-or balenaEtcher (or Raspberry Pi Imager in "use custom image" mode) against the built
-`.img`. Never reintroduce device-writing code.
+The tool produces an image **file** only. All raw block-device writes were ripped out:
+there is no macOS raw-device imager, no disk enumeration for writing, no `ERASE` prompt,
+and no `--dry-run` flashing path. `container/build-image.sh` refuses any output path under
+`/dev/` and any non-`.img` output. The image path's ONLY write step is the user running
+`dd` or balenaEtcher (or Raspberry Pi Imager in "use custom image" mode) against the built
+`.img`. Never reintroduce raw-device-writing code.
+
+One deliberate exception: the Cannoli `deploy` path (`task deploy`, opt-in
+`deploy_enabled`) copies the staged tree onto an **already-mounted** exFAT volume with
+`rsync -rlt`. That is a plain filesystem write, not a raw-device write: it never formats,
+never runs `diskutil erase`/`dd`, and never opens `/dev/*`. It is overlay-only (no
+`--delete`) so user ROMs/saves/BIOS survive. Deleting/reformatting the card stays a manual
+user step.
 
 ### Architecture and layout
 - `ansible/build.yml` - the single playbook (`hosts: localhost`, `connection: local`).
@@ -127,8 +136,7 @@ Rules enforced inside the container:
   exit 130/143. The final stdout line is `Wrote <out> (<size>MiB, label <label>)`.
 
 ### Playbook conventions
-- `payload_profile` is validated up front and must be `cannoli` or `nextui`; an unknown
-  value fails before any staging. The profile vars file and profile task file are both
+- `payload_profile` is validated up front and must be `cannoli` or `nextui`; an unknown  value fails before any staging. The profile vars file and profile task file are both
   selected from `payload_profile`.
 - Size resolution order: (1) a non-empty `image_device` reads that disk's geometry
   read-only via `diskutil info -plist` + `plutil`, asserts `WholeDisk == true`, and sets
@@ -156,6 +164,12 @@ Rules enforced inside the container:
 - `--tags payload` stages the tree without invoking the container; a full run stages
   and builds. `payload_dir`/`dist_dir`/`image_output`/`cache_dir` are `-e` overridable and
   the tests use temp dirs to keep `build/`, `dist/`, and cached archives untouched.
+- `deploy` is a separate, opt-in tag (never runs on `task image`): gated by
+  `deploy_enabled` and `payload_profile == 'cannoli'`. It resolves `deploy_target`
+  (default `/Volumes/<image_label>`), asserts it is a mounted directory (not `/` and not
+  `payload_dir`), then `rsync -rlt <payload_dir>/ <deploy_target>/` with no `--delete`.
+  `task deploy` runs `--tags payload,deploy -e deploy_enabled=true`, so it stages and
+  copies without the container; `-e deploy_target=` overrides the mount path.
 
 ### Cannoli contract conventions
 Cannoli is pinned at **v1.9.1**, commit `7755e376b6add0bbd25ea19104c368b7a40b979f`.
@@ -199,17 +213,22 @@ personal noncommercial use. Keep those credits in `README.md` when refreshing pi
 
 ### Task commands
 Run `task <name>` from the repository root. Target names are `setup`, `lint`,
-`validate`, `image`, `container`, `test`, and `ci`; the canonical commands they wrap are:
+`validate`, `image`, `deploy`, `container`, `test`, and `ci`; the canonical commands they
+wrap are:
 - `setup` - `uv sync --all-groups` and install pre-commit hooks
 - `container` - `docker build -t sbc-imager-builder:local .`
 - `image` - `uv run ansible-playbook ansible/build.yml -e device=<DEVICE>` (the full
   staged build; `--tags payload` collects the payload only). `DEVICE`, `SIZE_MIB`, and
   `IMAGE_DEVICE` are optional Task variables; when set, `SIZE_MIB`/`IMAGE_DEVICE` are
   passed through and the device vars decide otherwise.
+- `deploy` - stage the Cannoli payload, then copy it onto an already-mounted card:
+  `uv run ansible-playbook ansible/build.yml --tags payload,deploy -e device=<DEVICE>
+  -e image_device= -e deploy_enabled=true` (add `-e deploy_target=/Volumes/<label>` to
+  override the default `/Volumes/<image_label>`). No container, no image. Overlay-only.
 - `lint` - `shellcheck container/build-image.sh tests/*.sh` and
   `uv run ansible-lint ansible/`
 - `validate` - syntax-check the playbook for `rp-nova` and `trimui-brick`
-- `test` - the shell test suite (Cannoli, NextUI, and smoke)
+- `test` - the shell test suite (Cannoli payload, deploy overlay, NextUI, and smoke)
 - `ci` - the local gate (lint + validate + test)
 
 The raw ansible-playbook commands are the verified interface; keep any Taskfile
@@ -227,6 +246,10 @@ Write tests first. The suite is shell scripts in `tests/`:
   the 3-byte `"{}\n"` settings marker, the 5 pinned payload files with exact byte sizes (and
   prints their SHA-256), the RGC overlay/sharder placement, and no `CREDITS.md`.
   Includes failure injection against a copy of the tree.
+- `tests/deploy-overlay.sh` - stages the payload and runs the `deploy` block into a temp
+  "card" dir, asserting the tree (shaders/overlays included) lands while pre-existing user
+  ROMs/saves/BIOS survive, that a second deploy keeps them (overlay update), and that a
+  missing target fails.
 - `tests/ansible-payload-nextui.sh` - runs the NextUI profile with temp
   payload/dist/cache dirs and asserts the card contract: the 15 top-level entries, a
   valid zipped `MinUI.zip`, no extracted `.system`, `trimui/app/...`, `h700/`, and
