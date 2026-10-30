@@ -26,7 +26,7 @@
   gather_facts: false
 
   vars:
-    device: rg477m
+    device: rp-nova
     payload_profile: cannoli
     # Anchored to the repository root (playbook_dir/..). Ansible's file/copy
     # actions resolve relative paths against the playbook directory, but

@@ -175,7 +175,7 @@ fi
 PLAYBOOK_CMD=(
   uv run ansible-playbook ansible/build.yml
   --tags payload
-  -e device=rg477m
+  -e device=rp-nova
   -e "image_device="
   -e image_size_mib=128
   -e "payload_dir=$PAYLOAD_DIR"
@@ -225,7 +225,7 @@ PLAYBOOK_DIR="$REPO_ROOT/ansible"
 REL_TREE="$PLAYBOOK_DIR/$REL_PAYLOAD"
 rm -rf "${REL_TREE:?}" "${PLAYBOOK_DIR:?}/dist" "${REPO_ROOT:?}/$REL_PAYLOAD"
 if ! uv run ansible-playbook ansible/build.yml --tags payload \
-  -e device=rg477m -e "image_device=" -e image_size_mib=128 \
+  -e device=rp-nova -e "image_device=" -e image_size_mib=128 \
   -e "payload_dir=$REL_PAYLOAD" -e "dist_dir=dist" \
   >"$TMP_DIR/rel.log" 2>&1; then
   echo "FAIL relative-path run exited non-zero; full log follows" >&2

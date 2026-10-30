@@ -12,8 +12,7 @@ that image to an SD card is deliberately **your** step, with `dd` or
 balenaEtcher - the tool no longer writes block devices at all.
 
 Two payload profiles ship today: **Cannoli** for Android handhelds/SBCs such as
-the Anbernic RG477M and Retroid Pocket Nova, and **NextUI** for the TrimUI
-Brick.
+the Retroid Pocket Nova, and **NextUI** for the TrimUI Brick.
 
 ## What it does
 
@@ -43,7 +42,6 @@ Brick.
 
 | Device | Payload profile | Card tree | Device vars |
 | --- | --- | --- | --- |
-| Anbernic RG477M | `cannoli` | Android 14 / `arm64-v8a`; Cannoli v1.9.1 | [`ansible/vars/rg477m.yml`](ansible/vars/rg477m.yml) |
 | Retroid Pocket Nova | `cannoli` | Android 13 / `arm64-v8a`; Cannoli v1.9.1 | [`ansible/vars/rp-nova.yml`](ansible/vars/rp-nova.yml) |
 | TrimUI Brick | `nextui` | NextUI v6.15.0 on platform `tg5040`; Grout v5.4.0.0, Tailscale (minui-tailscale) 2.0.0, Central Scrutinizer v0.3.0 | [`ansible/vars/trimui-brick.yml`](ansible/vars/trimui-brick.yml) |
 
@@ -84,11 +82,11 @@ docker build -t sbc-imager-builder:local .
 # 1. Build the container (one-time, and after changing the Dockerfile/builder).
 task container
 
-# 2a. Build the RG477M Cannoli image as a 128 MiB file.
+# 2a. Build the Retroid Pocket Nova Cannoli image as a 128 MiB file.
 #     The task wrapper is shorthand for the ansible-playbook command below it.
-task image DEVICE=rg477m SIZE_MIB=128
+task image DEVICE=rp-nova SIZE_MIB=128
 uv run ansible-playbook ansible/build.yml \
-  -e device=rg477m -e image_device= -e image_size_mib=128
+  -e device=rp-nova -e image_device= -e image_size_mib=128
 
 # 2b. Build the TrimUI Brick NextUI image. A non-empty IMAGE_DEVICE reads the
 #     card's size read-only; SIZE_MIB=8192 is the fixed-size fallback.
@@ -110,9 +108,9 @@ The playbook has two tag groups. `payload` stages the tree without invoking the
 container; the full run (no `--tags`) stages and then builds the image:
 
 ```shell
-# Stage the RG477M payload tree at build/payload (default) without an image.
+# Stage the Retroid Pocket Nova payload tree at build/payload (default).
 uv run ansible-playbook ansible/build.yml --tags payload \
-  -e device=rg477m -e image_device= -e image_size_mib=128
+  -e device=rp-nova -e image_device= -e image_size_mib=128
 
 # Stage the TrimUI Brick payload tree; archives are cached in build/cache.
 uv run ansible-playbook ansible/build.yml --tags payload \
@@ -125,8 +123,8 @@ them with `-e`:
 
 ```shell
 uv run ansible-playbook ansible/build.yml \
-  -e device=rg477m -e image_device= -e image_size_mib=128 \
-  -e payload_dir=/tmp/payload -e dist_dir=/tmp -e image_output=/tmp/rg477m.img \
+  -e device=rp-nova -e image_device= -e image_size_mib=128 \
+  -e payload_dir=/tmp/payload -e dist_dir=/tmp -e image_output=/tmp/rp-nova.img \
   -e cache_dir=/tmp/cache
 ```
 
@@ -145,7 +143,7 @@ uv run ansible-playbook ansible/build.yml \
 ## Write the image
 
 The tool **never writes to a block device** - on purpose. It produces
-`dist/<device>.img` (for example `dist/rg477m.img` or
+`dist/<device>.img` (for example `dist/rp-nova.img` or
 `dist/trimui-brick.img`) and stops. Writing that image to your SD card is a
 separate, manual step you perform with `dd` or balenaEtcher. There is no
 flashing mode, no interactive card selector, no `ERASE` prompt, and no other
@@ -170,28 +168,6 @@ select `dist/<device>.img`, select the card, and flash. Raspberry Pi Imager
 also works in "use custom image" mode. All of these paths write the image
 produced by this tool; the tool itself has no device-writing code path.
 
-## The RG477M happy path
-
-`ansible/vars/rg477m.yml` pins the Anbernic RG477M build:
-
-| Var | Value |
-| --- | --- |
-| `device` | `rg477m` |
-| `payload_profile` | `cannoli` |
-| `image_label` | `CANNOLI` |
-| `image_device` | `/dev/disk5` (read-only geometry source) |
-| `image_size_mib` | `488156` (the full aligned capacity of that disk5) |
-| `image_output` | `dist/rg477m.img` |
-| `remote_assets` | Obtainium APK `v1.7.1` -> `APKs/Obtainium.apk`; Obtainium Emulation Pack `v8.0.1` -> `Obtainium/obtainium-emulation-pack-v8.0.1.json` |
-| `local_files` | `ansible/files/rg477m/tailscale.json` -> `Obtainium/tailscale.json` |
-| `local_dirs` | none |
-
-Because the vars file pins `image_device: /dev/disk5`, a bare
-`uv run ansible-playbook ansible/build.yml -e device=rg477m` sizes the image
-from that disk (read-only). Pass `-e image_device= -e image_size_mib=128` for a
-quick small build, or `-e image_size_mib=<N>` to pin any size. See
-[`examples/rg477m/`](examples/rg477m/) for the full device write-up.
-
 ## The Retroid Pocket Nova happy path
 
 `ansible/vars/rp-nova.yml` pins the Retroid Pocket Nova build:
@@ -208,8 +184,8 @@ quick small build, or `-e image_size_mib=<N>` to pin any size. See
 | `local_files` | `ansible/files/rp-nova/tailscale.json` -> `Obtainium/tailscale.json` |
 | `local_dirs` | none |
 
-The Nova uses a Qualcomm QCS8550 and runs Android 13, so it takes the same
-`arm64-v8a` Obtainium and Tailscale payloads as the RG477M. Because the vars
+The Nova uses a Qualcomm QCS8550 and runs Android 13, so it takes `arm64-v8a`
+Obtainium and Tailscale payloads. Because the vars
 file pins `image_device: /dev/disk5`, a bare
 `uv run ansible-playbook ansible/build.yml -e device=rp-nova` sizes the image
 from that disk (read-only); update `image_device` to your card's whole-disk node

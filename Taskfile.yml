@@ -1,7 +1,7 @@
 version: '3'
 
 vars:
-  DEVICE: '{{.DEVICE | default "rg477m"}}'
+  DEVICE: '{{.DEVICE | default "rp-nova"}}'
   SIZE_MIB: '{{.SIZE_MIB | default ""}}'
   IMAGE_DEVICE: '{{.IMAGE_DEVICE | default ""}}'
   # Absolute, derived from the Taskfile's own location, so staging and the
@@ -34,7 +34,6 @@ tasks:
   validate:
     desc: Syntax-check the Ansible build playbook
     cmds:
-      - uv run ansible-playbook ansible/build.yml --syntax-check -e device=rg477m -e image_device=
       - uv run ansible-playbook ansible/build.yml --syntax-check -e device=rp-nova -e image_device=
       - uv run ansible-playbook ansible/build.yml --syntax-check -e device=trimui-brick -e image_size_mib=1024
 

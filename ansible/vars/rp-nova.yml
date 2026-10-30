@@ -3,8 +3,7 @@
 #
 # The Nova uses a Qualcomm QCS8550 (Snapdragon 8 Gen 2 class) and runs
 # Android 13, installing arm64-v8a APKs. The payload is the shared Cannoli
-# contract plus the same arm64-v8a Obtainium / Emulation Pack / Tailscale
-# imports used by the RG477M card.
+# contract plus arm64-v8a Obtainium / Emulation Pack / Tailscale imports.
 #
 # remote_assets resolve to these exact GitHub release URLs:
 #   https://github.com/ImranR98/Obtainium/releases/download/v1.7.1/app-arm64-v8a-release.apk
