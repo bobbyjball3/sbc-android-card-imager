@@ -182,7 +182,7 @@ produced by this tool; the tool itself has no device-writing code path.
 | `image_size_mib` | `488156` (a 512GB card) |
 | `image_output` | `dist/rp-nova.img` |
 | `remote_assets` | Obtainium APK `v1.7.1` -> `APKs/Obtainium.apk`; Obtainium Emulation Pack `v8.0.1` -> `Obtainium/obtainium-emulation-pack-v8.0.1.json` |
-| `local_files` | `ansible/files/rp-nova/tailscale.json` -> `Obtainium/tailscale.json` |
+| `local_files` | `ansible/files/rp-nova/tailscale.json` -> `Obtainium/tailscale.json`; `nova-display-calibration.json` and `o2p-tweaks.json` -> `Obtainium/` |
 | `local_dirs` | none |
 
 The Nova uses a Qualcomm QCS8550 and runs Android 13, so it takes `arm64-v8a`

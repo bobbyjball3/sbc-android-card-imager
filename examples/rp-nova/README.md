@@ -16,13 +16,16 @@ Android boot images.
 
 ## Pins
 
-The device vars file pins two remote GitHub release assets plus one local file:
+The device vars file pins two remote GitHub release assets, the RGC source
+archive, and three local Obtainium import files:
 
 | Item | Pin | Card destination | Size | SHA-256 | License |
 | --- | --- | --- | --- | --- | --- |
 | Obtainium APK | `ImranR98/Obtainium` tag `v1.7.1`, asset `app-arm64-v8a-release.apk` | `APKs/Obtainium.apk` | 27,194,505 bytes | `04dfd02c56dae8d5271d2d402977e1b07c8eeffb313df054a13e71b75b8b8a26` | GPL-3.0 |
 | Obtainium Emulation Pack | `RJNY/Obtainium-Emulation-Pack` tag `v8.0.1`, asset `obtainium-emulation-pack-v8.0.1.json` | `Obtainium/obtainium-emulation-pack-v8.0.1.json` | 78,201 bytes | `c2170687b07881f5891fe9751903c13c31b80de506bd41b718f99abb45592169` | Unlicense |
 | Tailscale import | local `ansible/files/rp-nova/tailscale.json` | `Obtainium/tailscale.json` | 383 bytes | `965cb8f0afb48f7dfee57099ccaa43f00c9ef50e16c50fd4a90f1cab0286fcd4` | n/a |
+| Nova Display Calibration import | local `ansible/files/rp-nova/nova-display-calibration.json` | `Obtainium/nova-display-calibration.json` | 413 bytes | `75e21c6f82227da16876021367b5e9de7fafcb09d66eaa3ba4dd2c7e69310651` | n/a |
+| O2P Tweaks import | local `ansible/files/rp-nova/o2p-tweaks.json` | `Obtainium/o2p-tweaks.json` | 380 bytes | `d949f2255345d48d3726bc2d67a9afce6dea68c650c3de03d938ad10e8c2eb4e` | n/a |
 | RGC Overlay Pack | `retrogamecorps/RGC-Overlay-Pack` tag `v1.0` source tarball | `Cannoli/Shaders` + `Cannoli/Overlays/<TAG>` | 720,137 bytes | `e809eaf0717beaab90922229a7dfd665f8bb50ac6f80556e53758969e05926aa` | see upstream |
 
 The remote assets are downloaded by the playbook's `get_url` task from their
@@ -44,6 +47,26 @@ you import the file and refresh apps. The device vars declare it under
 
 The image also includes the pinned Emulation Pack JSON from GitHub; it is not
 regenerated or modified locally.
+
+## App imports
+
+Two extra Obtainium import files let Obtainium install apps from their GitHub
+releases on the device. Neither APK is embedded in the image; Obtainium
+downloads them when you import the files and refresh:
+
+- **Nova Display Calibration** (`local.nova.diagnostic`) -
+  [`pippopapera/nova-display-calibration`](https://github.com/pippopapera/nova-display-calibration),
+  an OLED gamma/sRGB calibration tool for the Nova. Obtainium tracks its latest
+  release (`v1.0.2` at the time of writing).
+- **O2P Tweaks** (`com.feralai.o2ptweaks`) -
+  [`FeralAI/o2ptweaks.app`](https://github.com/FeralAI/o2ptweaks.app), an Android
+  tweaks app. Obtainium tracks its latest release (`v0.3` at the time of
+  writing).
+
+Both use the same `additionalSettings` as the Tailscale import, including
+`autoApkFilterByArch`. They are declared under `local_files`, so the playbook
+copies them to `Obtainium/nova-display-calibration.json` and
+`Obtainium/o2p-tweaks.json`.
 
 ## Overlays and shaders
 
@@ -102,7 +125,8 @@ The playbook stages the full pinned skeleton automatically from
 - all 51 `Cannoli/Roms/<TAG>` directories, including the tags above;
 - `Cannoli/Config/settings.json` containing exactly `{}\n` (3 bytes) - the
   marker file that preselects the card as a Cannoli install;
-- `Obtainium/` with the pinned Emulation Pack and Tailscale import files.
+- `Obtainium/` with the pinned Emulation Pack plus the Tailscale, Nova Display
+  Calibration, and O2P Tweaks import files.
 
 The staged tree is 100 directories: 70 base (17 base dirs + 51 Roms tags + the
 implicit `Cannoli/Media` parent + `Obtainium`) plus 29 RGC overlay dirs and
@@ -183,10 +207,15 @@ overwrites the whole card.
    app pack.
 4. Import `Obtainium/tailscale.json` to add
    `com.tailscale.ipn` from `tailscale/tailscale-android`.
-5. Refresh/install from Obtainium; Tailscale tracks the latest release, while
-   the emulation pack entries are whatever that pinned pack defines.
+5. Import `Obtainium/nova-display-calibration.json` to add Nova Display
+   Calibration (`local.nova.diagnostic`).
+6. Import `Obtainium/o2p-tweaks.json` to add O2P Tweaks
+   (`com.feralai.o2ptweaks`).
+7. Refresh/install from Obtainium. Tailscale, Nova Display Calibration, and O2P
+   Tweaks track their latest releases, while the emulation pack entries are
+   whatever that pinned pack defines.
 
-The two imports are independent; you can import either one.
+The imports are independent; you can import any subset.
 
 ## Test
 

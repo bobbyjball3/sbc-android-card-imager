@@ -101,7 +101,9 @@ or balenaEtcher (or Raspberry Pi Imager in "use custom image" mode) against the 
 - `docs/cannoli-platform-tags.md` - human reference for the 51-tag Cannoli contract.
 - `examples/rp-nova/` - Cannoli device write-up for the Retroid Pocket Nova (Android 13,
   Qualcomm QCS8550, `arm64-v8a`). It uses the shared Cannoli profile plus arm64-v8a
-  Obtainium / Emulation Pack / Tailscale imports.
+  Obtainium / Emulation Pack / Tailscale imports, the RGC overlays/shaders, and
+  Obtainium import files for Nova Display Calibration (`local.nova.diagnostic`) and
+  O2P Tweaks (`com.feralai.o2ptweaks`).
 - `docs/nextui-layout.md` + `examples/trimui-brick/` - human reference and example for
   the NextUI card, first boot, Grout setup, and licensing.
 - `Taskfile.yml` and `pyproject.toml` - task runner and pinned toolchain
