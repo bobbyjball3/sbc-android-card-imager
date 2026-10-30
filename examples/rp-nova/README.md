@@ -1,7 +1,8 @@
 # Retroid Pocket Nova Cannoli card
 
 A pinned example for a Retroid Pocket Nova: a Cannoli-ready card skeleton plus
-Obtainium, the Obtainium Emulation Pack, and a Tailscale import file. The card
+Obtainium, the Obtainium Emulation Pack, a Tailscale import file, and the
+RGC-Overlay-Pack shaders and overlays. The card
 is staged by Ansible from [`ansible/vars/rp-nova.yml`](../../ansible/vars/rp-nova.yml)
 and built into a sparse `.img` by the container builder; you write that image to
 a card with `dd` or balenaEtcher - the tool never writes a device.
@@ -22,6 +23,7 @@ The device vars file pins two remote GitHub release assets plus one local file:
 | Obtainium APK | `ImranR98/Obtainium` tag `v1.7.1`, asset `app-arm64-v8a-release.apk` | `APKs/Obtainium.apk` | 27,194,505 bytes | `04dfd02c56dae8d5271d2d402977e1b07c8eeffb313df054a13e71b75b8b8a26` | GPL-3.0 |
 | Obtainium Emulation Pack | `RJNY/Obtainium-Emulation-Pack` tag `v8.0.1`, asset `obtainium-emulation-pack-v8.0.1.json` | `Obtainium/obtainium-emulation-pack-v8.0.1.json` | 78,201 bytes | `c2170687b07881f5891fe9751903c13c31b80de506bd41b718f99abb45592169` | Unlicense |
 | Tailscale import | local `ansible/files/rp-nova/tailscale.json` | `Obtainium/tailscale.json` | 383 bytes | `965cb8f0afb48f7dfee57099ccaa43f00c9ef50e16c50fd4a90f1cab0286fcd4` | n/a |
+| RGC Overlay Pack | `retrogamecorps/RGC-Overlay-Pack` tag `v1.0` source tarball | `Cannoli/Shaders` + `Cannoli/Overlays/<TAG>` | 720,137 bytes | `e809eaf0717beaab90922229a7dfd665f8bb50ac6f80556e53758969e05926aa` | see upstream |
 
 The remote assets are downloaded by the playbook's `get_url` task from their
 exact GitHub release tags (`force: no`); there are no mutable selectors. The
@@ -42,6 +44,30 @@ you import the file and refresh apps. The device vars declare it under
 
 The image also includes the pinned Emulation Pack JSON from GitHub; it is not
 regenerated or modified locally.
+
+## Overlays and shaders
+
+The image stages the pinned
+[RGC-Overlay-Pack](https://github.com/retrogamecorps/RGC-Overlay-Pack) `v1.0`
+source tarball (SHA-256 `e809eaf0...926aa`) into Cannoli's own directories:
+
+- **Shaders:** the GLSL presets `crt-1tap`, `sharp-shimmerless`, and
+  `zfast_crt_geo_svideo` land in `Cannoli/Shaders/`, with their sources in
+  `Cannoli/Shaders/shaders/`. Cannoli recursively scans `*.glslp`, so they show
+  up in its shader picker. The pack's Slang shaders are deliberately omitted:
+  Cannoli deletes `.slang`/`.slangp` on launch.
+- **Overlays:** the handheld bezels map to their platforms - Game Boy
+  (`Jeltron_GB-DMG`, `Perfect_GB-DMG`) to `Cannoli/Overlays/GB`, Game Boy Color
+  (`Jeltron_GB-Color`, `Perfect_GBC`) to `Cannoli/Overlays/GBC`, and Game Boy
+  Advance (`Jeltron_GBA`, `Perfect_GBA`) to `Cannoli/Overlays/GBA`. The generic
+  `Jeltron_CRT` bezel is copied to the 26 4:3 home-console tags (NES, FDS, SNES,
+  N64, SMS, MD, SG1000, 32X, SEGACD, SATURN, DC, PS, PS2, GC, WII, PCE, PCFX,
+  SUPERGRAFX, NEOGEO, ATARI2600, ATARI5200, ATARI7800, COLECOVISION,
+  INTELLIVISION, VECTREX, JAGUAR). Only the PNGs are copied; Cannoli ignores the
+  RetroArch `.cfg` files.
+
+Select an overlay or shader per platform from Cannoli's in-game menu. The
+temporary source tree is removed before the image is assembled.
 
 ## Platform mapping
 
@@ -78,8 +104,9 @@ The playbook stages the full pinned skeleton automatically from
   marker file that preselects the card as a Cannoli install;
 - `Obtainium/` with the pinned Emulation Pack and Tailscale import files.
 
-The staged tree is 70 directories: 17 base dirs + 51 Roms tags + the implicit
-`Cannoli/Media` parent + `Obtainium`. There is no `CREDITS.md`. ROMs, BIOS
+The staged tree is 100 directories: 70 base (17 base dirs + 51 Roms tags + the
+implicit `Cannoli/Media` parent + `Obtainium`) plus 29 RGC overlay dirs and
+`Cannoli/Shaders/shaders`. There is no `CREDITS.md`. ROMs, BIOS
 files, and box art are supplied by Cannoli/RomM on the card; this repository
 contains no such payloads.
 

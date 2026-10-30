@@ -141,9 +141,11 @@ Rules enforced inside the container:
   `timeout: 600`, then `stat` before and after download to assert the cached checksum.
   A mismatch names the file and says to delete it from `cache_dir`.
   `ansible.builtin.unarchive` with `remote_src: true` extracts them into
-  `payload_dir/<dest>`. The Grout entry additionally extracts into `Grout.pak` and
-  chmods `launch.sh` and `grout` to 0755. The whole archive block is guarded by
-  `remote_archives | length > 0`, so the Cannoli profile (empty list) is unaffected.
+  `payload_dir/<dest>`. An entry may instead pin a direct `url` (source tarball) and
+  pass `extra_opts` (e.g. `--strip-components=1`) to `unarchive`; the
+  `repo`/`tag`/`asset` form is only required when `url` is absent. The Grout entry
+  additionally extracts into `Grout.pak` and chmods `launch.sh` and `grout` to 0755.
+  The whole archive block is guarded by `remote_archives | length > 0`.
 - Remote assets use `ansible.builtin.get_url` with `force: no` against
   `https://github.com/<repo>/releases/download/<tag>/<asset>` (the 302 to
   objects.githubusercontent.com is followed). Exact tag only; no mutable selectors.
@@ -165,6 +167,18 @@ network access at runtime. To refresh the contract, update the pinned upstream
 expectations (`tests/ansible-payload.sh` counts)
 together in one change. The old pipeline's `CREDITS.md` emission is gone; no payload
 builds it.
+
+The `rp-nova` device adds the pinned RGC-Overlay-Pack v1.0 source tarball (tag
+archive, SHA-256 pinned, `dest: .rgc-src`, `extra_opts: --strip-components=1`).
+`ansible/tasks/payload-cannoli-assets.yml` is included after the archive block
+(guarded by `payload_profile == 'cannoli'`, `rgc_overlays` defined, and non-empty
+`remote_archives`). It copies the GLSL shader presets into `Cannoli/Shaders`
+(+ `Cannoli/Shaders/shaders`), maps overlay PNGs into `Cannoli/Overlays/<TAG>`
+(GB/GBC/GBA plus the 26 CRT home-console tags in `rgc_crt_tags`), skips Slang
+(Cannoli purges it) and the RetroArch `.cfg` files, and removes `.rgc-src`. The
+rp-nova tree is therefore 100 directories (70 + 29 overlay dirs + `Shaders/shaders`).
+Cannoli lists only `.png` files directly inside `Cannoli/Overlays/<TAG>` and
+recursively scans `Cannoli/Shaders/**/*.glslp`.
 
 ### NextUI contract conventions
 NextUI is pinned at **v6.15.0**, asset `NextUI-20261013-0-all.zip`, SHA-256

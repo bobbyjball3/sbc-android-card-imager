@@ -23,7 +23,8 @@ the Retroid Pocket Nova, and **NextUI** for the TrimUI Brick.
   `Cannoli/Roms/<TAG>` folders, the other 16 base directories, the
   `Cannoli/Config/settings.json` `{}` install marker, and `APKs/` at the card
   root. ROMs, BIOS files, and box art are supplied by Cannoli/RomM and are not
-  inputs.
+  inputs. The `rp-nova` build also stages the pinned RGC-Overlay-Pack GLSL
+  shaders into `Cannoli/Shaders` and overlay PNGs into `Cannoli/Overlays/<TAG>`.
 - **NextUI profile:** downloads the pinned NextUI `-all` release archive and
   the pinned Grout pak, verifies both SHA-256 checksums, caches them under
   `build/cache`, and extracts them into the card tree. `MinUI.zip` stays zipped
@@ -266,21 +267,23 @@ Cannoli/
   Logs/
   Media/Recordings/
   Media/Screenshots/
-  Overlays/
+  Overlays/<TAG>/           # per-platform overlay PNGs (rp-nova: RGC)
   Roms/<TAG>/               # all 51 v1.9.1 tags
   Save States/
   Saves/
-  Shaders/
+  Shaders/                  # shader presets (rp-nova: RGC GLSL)
   Wallpapers/
 APKs/
 Obtainium/                  # device payload files (per-device vars)
 ```
 
 The 17 base directories and 51 tags are declared in
-`ansible/vars/cannoli.yml` (plus the settings marker). The staged tree is 70
-directories: 17 base dirs + 51 `Roms/<TAG>` dirs + the implicit
-`Cannoli/Media` parent + `Obtainium`. Cannoli's own generated data, emulator
-cores, and app-private data are never included.
+`ansible/vars/cannoli.yml` (plus the settings marker). The base staged tree is
+70 directories: 17 base dirs + 51 `Roms/<TAG>` dirs + the implicit
+`Cannoli/Media` parent + `Obtainium`. The `rp-nova` RGC assets add 29
+`Cannoli/Overlays/<TAG>` dirs (GB, GBC, GBA, and the 26 CRT home-console tags)
+plus `Cannoli/Shaders/shaders`, for 100 directories total. Cannoli's own
+generated data, emulator cores, and app-private data are never included.
 
 ## NextUI layout summary
 
@@ -389,6 +392,14 @@ I wish you well.
   <https://github.com/CannoliHQ/cannoli>. The directory contract in
   `ansible/vars/cannoli.yml` and the install marker are derived from this
   pinned release.
+- **RGC-Overlay-Pack** v1.0, tag source archive (commit
+  `a1624d98af4cb0d4af2ff0b21d26d0131a1e4631`) -
+  <https://github.com/retrogamecorps/RGC-Overlay-Pack>. Shaders and overlays are
+  collected by Retro Game Corps from Jeltron (overlays), mugwomp93 (overlays and
+  palette), Woohyun-Kang (sharp-shimmerless shader), and the libretro
+  glsl-shaders project. The source tarball is downloaded and SHA-256 verified at
+  build time, not vendored; see the upstream README and guide for the original
+  authors' licenses.
 - **NextUI** v6.15.0, asset `NextUI-20261013-0-all.zip`, PolyForm
   Noncommercial License 1.0.0 - <https://github.com/LoveRetro/NextUI>. The
   archive is downloaded and SHA-256 verified at build time, not vendored. The
