@@ -4,6 +4,7 @@ vars:
   DEVICE: '{{.DEVICE | default "rp-nova"}}'
   SIZE_MIB: '{{.SIZE_MIB | default ""}}'
   IMAGE_DEVICE: '{{.IMAGE_DEVICE | default ""}}'
+  DEPLOY_TARGET: '{{.DEPLOY_TARGET | default ""}}'
   # Absolute, derived from the Taskfile's own location, so staging and the
   # container mount resolve the same directory no matter where task is run.
   # The playbook's file/copy actions resolve relative paths against the
@@ -55,10 +56,23 @@ tasks:
         -e dist_dir={{.DIST_DIR}}
         -e image_output={{.DIST_DIR}}/{{.DEVICE}}.img
 
+  deploy:
+    desc: Stage the Cannoli payload and copy it onto a mounted SD card
+    cmds:
+      - >-
+        uv run ansible-playbook ansible/build.yml --tags payload,deploy
+        -e device={{.DEVICE}}
+        -e image_device=
+        -e deploy_enabled=true
+        {{if .DEPLOY_TARGET}}-e deploy_target={{.DEPLOY_TARGET}}{{end}}
+        -e payload_dir={{.PAYLOAD_DIR}}
+        -e dist_dir={{.DIST_DIR}}
+
   test:
     desc: Run the payload and image smoke tests
     cmds:
       - tests/ansible-payload.sh
+      - tests/deploy-overlay.sh
       - tests/ansible-payload-nextui.sh
       - tests/smoke-image.sh
 

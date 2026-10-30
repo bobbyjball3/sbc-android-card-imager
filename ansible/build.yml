@@ -41,6 +41,11 @@
     image_output: "{{ repo_root }}/dist/{{ device }}.img"
     cache_dir: "{{ repo_root }}/build/cache"
     rgc_source_dir: "{{ payload_dir }}/.rgc-src"
+    # Fast deploy path for Cannoli devices: rsync the staged tree onto a mounted
+    # exFAT card (no container, no image, no raw device). Opt-in via
+    # deploy_enabled so a plain `task image` never writes to a card volume.
+    deploy_enabled: false
+    deploy_target: "/Volumes/{{ image_label }}"
     remote_assets: []
     remote_archives: []
     local_files: []
@@ -341,6 +346,51 @@
         state: directory
         mode: "0755"
       tags: payload
+
+    # Copy-only deploy for Cannoli: stage once, then rsync onto a mounted card.
+    # Overlay only (no --delete), so ROMs, saves, BIOS, and art already on the
+    # card are never removed. No formatting and no raw block-device access.
+    - name: Deploy staged payload to a mounted SD card
+      when:
+        - payload_profile == 'cannoli'
+        - deploy_enabled | bool
+      tags: deploy
+      block:
+        - name: Assert deploy target is safe
+          ansible.builtin.assert:
+            that:
+              - deploy_target | length > 0
+              - deploy_target != '/'
+              - deploy_target | regex_replace('/+$', '') != payload_dir | regex_replace('/+$', '')
+            fail_msg: >-
+              Refusing to deploy to deploy_target '{{ deploy_target }}'. Point it
+              at a mounted card volume, e.g. -e deploy_target=/Volumes/NOVA.
+            quiet: true
+
+        - name: Stat deploy target
+          ansible.builtin.stat:
+            path: "{{ deploy_target }}"
+          register: deploy_target_stat
+
+        - name: Assert deploy target is a mounted directory
+          ansible.builtin.assert:
+            that:
+              - deploy_target_stat.stat.exists
+              - deploy_target_stat.stat.isdir
+            fail_msg: >-
+              Deploy target {{ deploy_target }} is not a mounted directory.
+              Format the card as exFAT with label '{{ image_label }}', insert it,
+              then re-run; or pass -e deploy_target=/path/to/mount.
+            quiet: true
+
+        - name: Copy the staged payload onto the card
+          ansible.builtin.command:
+            argv:
+              - rsync
+              - -rlt
+              - "{{ payload_dir }}/"
+              - "{{ deploy_target }}/"
+          changed_when: true
 
     - name: Resolve host uid
       ansible.builtin.command: id -u
