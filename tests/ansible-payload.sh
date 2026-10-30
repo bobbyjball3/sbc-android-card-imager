@@ -207,6 +207,8 @@ assert_payload_tree() {
 APKs/Obtainium.apk 27194505
 Obtainium/obtainium-emulation-pack-v8.0.1.json 78201
 Obtainium/tailscale.json 383
+Obtainium/nova-display-calibration.json 413
+Obtainium/o2p-tweaks.json 380
 FILES
 
   # No CREDITS.md anywhere under the payload.
@@ -315,4 +317,4 @@ echo "PASS path-resolution: relative default stages at $REL_TREE ($rel_dirs dirs
 rm -rf "${REL_TREE:?}" "${PLAYBOOK_DIR:?}/dist" "${REPO_ROOT:?}/$REL_PAYLOAD"
 
 echo "== Result =="
-echo "PASS: payload contract holds (100 directories, overlays+shaders, 3 files, no CREDITS.md)"
+echo "PASS: payload contract holds (100 directories, overlays+shaders, 5 files, no CREDITS.md)"
