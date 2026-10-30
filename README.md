@@ -29,9 +29,9 @@ the Retroid Pocket Nova, and **NextUI** for the TrimUI Brick.
   the pinned Grout pak, verifies both SHA-256 checksums, caches them under
   `build/cache`, and extracts them into the card tree. `MinUI.zip` stays zipped
   for the NextUI installer.
-- Downloads pinned GitHub release assets and archives (exact repo/tag/asset;
-  archives also pinned by SHA-256) and copies local payload files into the
-  staged tree.
+- Downloads pinned GitHub release assets and archives (release assets by exact
+  repo/tag/asset; archives by exact tag or direct source URL, pinned by SHA-256)
+  and copies local payload files into the staged tree.
 - Builds a sparse MBR + exFAT `.img` inside a privileged Linux container
   (`sbc-imager-builder:local`), checks the filesystem with `fsck.exfat -n`, and
   atomically publishes the image via `<out>.partial` + `mv`.
@@ -211,7 +211,7 @@ small build, or `-e image_size_mib=<N>` to pin any size. See
 | `local_files` | none |
 | `local_dirs` | none |
 
-The two archives are SHA-256 pinned, cached under `build/cache`, verified before
+All four archives are SHA-256 pinned, cached under `build/cache`, verified before
 extraction, and not vendored in this repository. For the Brick, prefer
 `task image DEVICE=trimui-brick IMAGE_DEVICE=/dev/diskN` so the image is sized
 read-only from the actual card; `task image DEVICE=trimui-brick SIZE_MIB=8192`
@@ -318,10 +318,11 @@ Cannoli, `APKs`, `Obtainium`, or a Cannoli settings marker.
   packages come from the pinned upstream archive, not from this tool.
 - **ROMs, BIOS files, and box art are supplied elsewhere.** Cannoli/RomM or the
   NextUI archive provides those files on the card; this tool does not download
-  or copy ROMs or BIOS files. The only remote downloads are the pinned GitHub
-  release assets and archives declared in the device vars (`remote_assets` and
-  `remote_archives`), each pinned by exact repo, tag, asset name, and - for
-  archives - SHA-256. The repository contains no copyrighted ROMs or BIOS files.
+  or copy ROMs or BIOS files. The only remote downloads are the pinned assets and
+  archives declared in the device vars (`remote_assets` and `remote_archives`):
+  release assets by exact repo/tag/asset, and archives by exact tag or direct
+  source URL (for example the RGC-Overlay-Pack tarball), each SHA-256 pinned.
+  The repository contains no copyrighted ROMs or BIOS files.
 - **No zero-touch first boot.** The Cannoli card preselects Cannoli as an
   existing install but still needs emulator, core, and settings configuration.
   The NextUI card still runs the upstream first-boot installer, and Grout needs
@@ -351,8 +352,8 @@ task ci          # local gate
 Shell tests live in `tests/`:
 
 - `tests/ansible-payload.sh` - runs the Cannoli payload playbook in a temp dir
-  and asserts the full staged-tree contract (70 directories, 3 payload files,
-  the 3-byte settings marker, no `CREDITS.md`).
+  and asserts the full staged-tree contract (100 directories including the RGC
+  overlay/shaders, 5 payload files, the 3-byte settings marker, no `CREDITS.md`).
 - `tests/ansible-payload-nextui.sh` - stages the NextUI profile with a temp
   payload/cache/dist, asserts the 15-entry card root, zipped `MinUI.zip`,
   `trimui/`, and executable Grout pak, then builds and mounts a real exFAT image.
@@ -400,6 +401,12 @@ I wish you well.
   glsl-shaders project. The source tarball is downloaded and SHA-256 verified at
   build time, not vendored; see the upstream README and guide for the original
   authors' licenses.
+- **Nova Display Calibration** v1.0.2, package `local.nova.diagnostic` -
+  <https://github.com/pippopapera/nova-display-calibration>. Delivered as an
+  Obtainium import that tracks the repo's releases; the APK is not vendored.
+- **O2P Tweaks** v0.3, package `com.feralai.o2ptweaks` -
+  <https://github.com/FeralAI/o2ptweaks.app>. Delivered as an Obtainium import
+  that tracks the repo's releases; the APK is not vendored.
 - **NextUI** v6.15.0, asset `NextUI-20261013-0-all.zip`, PolyForm
   Noncommercial License 1.0.0 - <https://github.com/LoveRetro/NextUI>. The
   archive is downloaded and SHA-256 verified at build time, not vendored. The

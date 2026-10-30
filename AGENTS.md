@@ -161,8 +161,8 @@ Rules enforced inside the container:
 Cannoli is pinned at **v1.9.1**, commit `7755e376b6add0bbd25ea19104c368b7a40b979f`.
 `ansible/vars/cannoli.yml` is the runtime source of truth for the directory contract:
 17 `cannoli_base_dirs` (Cannoli root + 15 Cannoli dirs + `APKs`), 51 `cannoli_tags`
-(each staged as `Cannoli/Roms/<TAG>`), and the `cannoli_settings_marker` file. The staged
-tree is 70 directories total: 17 + 51 + the implicit `Cannoli/Media` parent (of the two
+(each staged as `Cannoli/Roms/<TAG>`), and the `cannoli_settings_marker` file. The base
+staged tree is 70 directories total: 17 + 51 + the implicit `Cannoli/Media` parent (of the two
 declared `Media/*` dirs) + `Obtainium` (destination of device `local_files`). There is no
 network access at runtime. To refresh the contract, update the pinned upstream
 `platforms.json` data into `cannoli_tags`, `docs/cannoli-platform-tags.md`, and the test
@@ -223,8 +223,9 @@ host `exfatprogs`/`exfat-fuse` userspace packages do not provide it.
 Write tests first. The suite is shell scripts in `tests/`:
 - `tests/ansible-payload.sh` - runs the payload playbook into a temp dir and asserts the
   contract: exactly 3 top-level entries (`APKs`, `Cannoli`, `Obtainium`), 17/17 base dirs,
-  51/51 Roms tags, 70 directories total, the 3-byte `"{}\n"` settings marker, the 3 pinned
-  payload files with exact byte sizes (and prints their SHA-256), and no `CREDITS.md`.
+  51/51 Roms tags, 100 directories total (70 base + 29 RGC overlay dirs + `Shaders/shaders`),
+  the 3-byte `"{}\n"` settings marker, the 5 pinned payload files with exact byte sizes (and
+  prints their SHA-256), the RGC overlay/sharder placement, and no `CREDITS.md`.
   Includes failure injection against a copy of the tree.
 - `tests/ansible-payload-nextui.sh` - runs the NextUI profile with temp
   payload/dist/cache dirs and asserts the card contract: the 15 top-level entries, a

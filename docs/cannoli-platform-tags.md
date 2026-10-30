@@ -27,9 +27,11 @@ Python registry and no network access at runtime.
   `Cannoli/Config/settings.json`, a file written as exactly `"{}\n"` that
   preselects the card as a Cannoli install.
 
-The staged tree is 70 directories: the 17 base dirs + 51 Roms tag dirs + the
-implicit `Cannoli/Media` parent + `Obtainium` (the destination of device
-`local_files`). There is no `CREDITS.md` in the staged tree.
+The base staged tree is 70 directories: the 17 base dirs + 51 Roms tag dirs +
+the implicit `Cannoli/Media` parent + `Obtainium` (the destination of device
+`local_files`). The `rp-nova` example additionally stages RGC overlay and
+shader dirs, for 100 directories total. There is no `CREDITS.md` in the staged
+tree.
 
 ## Tags
 
@@ -113,4 +115,5 @@ and update, in one change:
    `ansible/vars/cannoli.yml`;
 2. this document (tag table, base-dir list, BIOS notes);
 3. the test expectations: the derived counts and base-directory checks in
-   `tests/ansible-payload.sh` (17 base, 51 tags, 70 directories).
+   `tests/ansible-payload.sh` (17 base, 51 tags; 100 directories with the
+   `rp-nova` RGC overlay/shader dirs).
