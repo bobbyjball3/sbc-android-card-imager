@@ -99,6 +99,10 @@ or balenaEtcher (or Raspberry Pi Imager in "use custom image" mode) against the 
   same builder; do not fork or change it for NextUI.
 - `tests/*.sh` - shell QA scripts (see Testing strategy).
 - `docs/cannoli-platform-tags.md` - human reference for the 51-tag Cannoli contract.
+- `examples/rg477m/` + `examples/rp-nova/` - Cannoli device write-ups for the two Android
+  devices: Anbernic RG477M (Android 14) and Retroid Pocket Nova (Android 13, Qualcomm
+  QCS8550, `arm64-v8a`). Both share the Cannoli profile and the same arm64-v8a
+  Obtainium / Emulation Pack / Tailscale imports; only the device vars and label differ.
 - `docs/nextui-layout.md` + `examples/trimui-brick/` - human reference and example for
   the NextUI card, first boot, Grout setup, and licensing.
 - `Taskfile.yml` and `pyproject.toml` - task runner and pinned toolchain
@@ -189,7 +193,7 @@ Run `task <name>` from the repository root. Target names are `setup`, `lint`,
   passed through and the device vars decide otherwise.
 - `lint` - `shellcheck container/build-image.sh tests/*.sh` and
   `uv run ansible-lint ansible/`
-- `validate` - syntax-check the playbook for `rg477m` and `trimui-brick`
+- `validate` - syntax-check the playbook for `rg477m`, `rp-nova`, and `trimui-brick`
 - `test` - the shell test suite (Cannoli, NextUI, and smoke)
 - `ci` - the local gate (lint + validate + test)
 

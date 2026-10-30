@@ -12,7 +12,8 @@ that image to an SD card is deliberately **your** step, with `dd` or
 balenaEtcher - the tool no longer writes block devices at all.
 
 Two payload profiles ship today: **Cannoli** for Android handhelds/SBCs such as
-the Anbernic RG477M, and **NextUI** for the TrimUI Brick.
+the Anbernic RG477M and Retroid Pocket Nova, and **NextUI** for the TrimUI
+Brick.
 
 ## What it does
 
@@ -43,6 +44,7 @@ the Anbernic RG477M, and **NextUI** for the TrimUI Brick.
 | Device | Payload profile | Card tree | Device vars |
 | --- | --- | --- | --- |
 | Anbernic RG477M | `cannoli` | Android 14 / `arm64-v8a`; Cannoli v1.9.1 | [`ansible/vars/rg477m.yml`](ansible/vars/rg477m.yml) |
+| Retroid Pocket Nova | `cannoli` | Android 13 / `arm64-v8a`; Cannoli v1.9.1 | [`ansible/vars/rp-nova.yml`](ansible/vars/rp-nova.yml) |
 | TrimUI Brick | `nextui` | NextUI v6.15.0 on platform `tg5040`; Grout v5.4.0.0, Tailscale (minui-tailscale) 2.0.0, Central Scrutinizer v0.3.0 | [`ansible/vars/trimui-brick.yml`](ansible/vars/trimui-brick.yml) |
 
 Both images are payload or pre-seeded card files, not official firmware images.
@@ -189,6 +191,31 @@ Because the vars file pins `image_device: /dev/disk5`, a bare
 from that disk (read-only). Pass `-e image_device= -e image_size_mib=128` for a
 quick small build, or `-e image_size_mib=<N>` to pin any size. See
 [`examples/rg477m/`](examples/rg477m/) for the full device write-up.
+
+## The Retroid Pocket Nova happy path
+
+`ansible/vars/rp-nova.yml` pins the Retroid Pocket Nova build:
+
+| Var | Value |
+| --- | --- |
+| `device` | `rp-nova` |
+| `payload_profile` | `cannoli` |
+| `image_label` | `NOVA` |
+| `image_device` | `/dev/disk5` (read-only geometry source) |
+| `image_size_mib` | `488156` (a 512GB card) |
+| `image_output` | `dist/rp-nova.img` |
+| `remote_assets` | Obtainium APK `v1.7.1` -> `APKs/Obtainium.apk`; Obtainium Emulation Pack `v8.0.1` -> `Obtainium/obtainium-emulation-pack-v8.0.1.json` |
+| `local_files` | `ansible/files/rp-nova/tailscale.json` -> `Obtainium/tailscale.json` |
+| `local_dirs` | none |
+
+The Nova uses a Qualcomm QCS8550 and runs Android 13, so it takes the same
+`arm64-v8a` Obtainium and Tailscale payloads as the RG477M. Because the vars
+file pins `image_device: /dev/disk5`, a bare
+`uv run ansible-playbook ansible/build.yml -e device=rp-nova` sizes the image
+from that disk (read-only); update `image_device` to your card's whole-disk node
+if it is not `disk5`. Pass `-e image_device= -e image_size_mib=128` for a quick
+small build, or `-e image_size_mib=<N>` to pin any size. See
+[`examples/rp-nova/`](examples/rp-nova/) for the full device write-up.
 
 ## The TrimUI Brick happy path
 
