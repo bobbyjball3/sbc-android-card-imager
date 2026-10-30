@@ -40,6 +40,7 @@
     dist_dir: "{{ repo_root }}/dist"
     image_output: "{{ repo_root }}/dist/{{ device }}.img"
     cache_dir: "{{ repo_root }}/build/cache"
+    rgc_source_dir: "{{ payload_dir }}/.rgc-src"
     remote_assets: []
     remote_archives: []
     local_files: []
@@ -98,11 +99,12 @@
         - name: Validate remote archive entries
           ansible.builtin.assert:
             that:
-              - (['repo', 'tag', 'asset', 'sha256', 'dest'] | difference(item.keys() | list)) | length == 0
-              - item.repo is string
-              - item.repo | length > 0
-              - item.tag is string
-              - item.tag | length > 0
+              - (['asset', 'sha256', 'dest'] | difference(item.keys() | list)) | length == 0
+              - >-
+                item.url is defined or (item.repo is defined and item.repo is
+                string and item.repo | length > 0 and item.tag is defined and
+                item.tag is string and item.tag | length > 0)
+              - item.url is not defined or (item.url is string and item.url | length > 0)
               - item.asset is string
               - item.asset | length > 0
               - item.sha256 is string
@@ -110,11 +112,12 @@
               - item.sha256 is match('^[0-9a-f]{64}$')
               - item.dest is string
               - item.dest | length > 0
+              - (item.extra_opts | default([])) is sequence
               - (item.executables | default([])) is sequence
             fail_msg: >-
               Invalid remote_archives entry {{ item.asset | default('unknown') }}:
-              required keys repo/tag/asset/sha256/dest (strings), sha256 64 hex,
-              dest non-empty, executables optional list.
+              required keys asset/sha256/dest (strings) plus repo/tag or url,
+              sha256 64 hex, dest non-empty, extra_opts/executables optional lists.
             quiet: true
           loop: "{{ remote_archives }}"
           loop_control:
@@ -157,7 +160,10 @@
 
         - name: Download pinned remote archives to cache
           ansible.builtin.get_url:
-            url: "https://github.com/{{ item.repo }}/releases/download/{{ item.tag }}/{{ item.asset }}"
+            url: >-
+              {{ item.url if item.url is defined else
+              'https://github.com/' ~ item.repo ~ '/releases/download/' ~
+              item.tag ~ '/' ~ item.asset }}
             dest: "{{ cache_dir }}/{{ item.asset }}"
             checksum: "sha256:{{ item.sha256 }}"
             force: false
@@ -192,6 +198,7 @@
             src: "{{ cache_dir }}/{{ item.asset }}"
             dest: "{{ payload_dir }}/{{ item.dest }}"
             remote_src: true
+            extra_opts: "{{ item.extra_opts | default(omit) }}"
           loop: "{{ remote_archives }}"
 
         - name: Make pak binaries executable
@@ -202,6 +209,14 @@
           loop: "{{ remote_archives | selectattr('executables', 'defined') | list | subelements('executables') }}"
           loop_control:
             label: "{{ item.0.asset }}:{{ item.1 }}"
+
+    - name: Stage RGC overlays and shaders for Cannoli
+      ansible.builtin.include_tasks: tasks/payload-cannoli-assets.yml
+      when:
+        - payload_profile == 'cannoli'
+        - rgc_overlays is defined
+        - remote_archives | length > 0
+      tags: payload
 
     - name: Create remote asset destination directories
       ansible.builtin.file:

@@ -1,0 +1,84 @@
+---
+# Cannoli RGC overlay and shader staging.
+#
+# build.yml extracts the pinned RGC-Overlay-Pack tarball into rgc_source_dir
+# (remote_archives, --strip-components=1). This task places the pieces where
+# Cannoli looks for them:
+#   * GLSL shader presets -> Cannoli/Shaders (Cannoli recursively scans *.glslp
+#     and purges Slang on boot, so only shaders_glsl is copied);
+#   * overlay PNGs -> Cannoli/Overlays/<TAG> (Cannoli lists .png files directly
+#     inside the per-platform directory and ignores .cfg files).
+# The temporary source tree is removed before image assembly.
+
+- name: Require the RGC overlay map for the Cannoli profile
+  ansible.builtin.assert:
+    that:
+      - rgc_overlays is mapping
+      - rgc_crt_tags is sequence
+      - rgc_crt_overlay is string
+      - rgc_shaders.presets is sequence
+      - rgc_shaders.sources is sequence
+    fail_msg: >-
+      Cannoli RGC staging needs rgc_overlays, rgc_crt_tags, rgc_crt_overlay,
+      and rgc_shaders in the device vars file.
+    quiet: true
+  tags: payload
+
+- name: Create RGC overlay destination directories
+  ansible.builtin.file:
+    path: "{{ payload_dir }}/Cannoli/Overlays/{{ item }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ (rgc_overlays.keys() | list) + rgc_crt_tags }}"
+  tags: payload
+
+- name: Copy RGC handheld overlays
+  ansible.builtin.copy:
+    src: "{{ rgc_source_dir }}/RGC overlays/{{ item.1 }}"
+    dest: "{{ payload_dir }}/Cannoli/Overlays/{{ item.0.key }}/{{ item.1 }}"
+    remote_src: true
+    mode: "0644"
+  loop: "{{ rgc_overlays | dict2items | subelements('value') }}"
+  loop_control:
+    label: "{{ item.0.key }}:{{ item.1 }}"
+  tags: payload
+
+- name: Copy RGC CRT overlay to home-console tags
+  ansible.builtin.copy:
+    src: "{{ rgc_source_dir }}/RGC overlays/{{ rgc_crt_overlay }}"
+    dest: "{{ payload_dir }}/Cannoli/Overlays/{{ item }}/{{ rgc_crt_overlay }}"
+    remote_src: true
+    mode: "0644"
+  loop: "{{ rgc_crt_tags }}"
+  tags: payload
+
+- name: Create Cannoli Shaders source subdirectory
+  ansible.builtin.file:
+    path: "{{ payload_dir }}/Cannoli/Shaders/shaders"
+    state: directory
+    mode: "0755"
+  tags: payload
+
+- name: Copy RGC GLSL shader presets
+  ansible.builtin.copy:
+    src: "{{ rgc_source_dir }}/RGC shaders/shaders_glsl/{{ item }}"
+    dest: "{{ payload_dir }}/Cannoli/Shaders/{{ item }}"
+    remote_src: true
+    mode: "0644"
+  loop: "{{ rgc_shaders.presets }}"
+  tags: payload
+
+- name: Copy RGC GLSL shader sources
+  ansible.builtin.copy:
+    src: "{{ rgc_source_dir }}/RGC shaders/shaders_glsl/shaders/{{ item }}"
+    dest: "{{ payload_dir }}/Cannoli/Shaders/shaders/{{ item }}"
+    remote_src: true
+    mode: "0644"
+  loop: "{{ rgc_shaders.sources }}"
+  tags: payload
+
+- name: Remove the RGC source tree
+  ansible.builtin.file:
+    path: "{{ rgc_source_dir }}"
+    state: absent
+  tags: payload
